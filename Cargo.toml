@@ -1,0 +1,12 @@
+[package]
+authors = ["Asher Jingkong Chen"]
+name = "simple-nerf"
+publish = false
+
+[lib]
+name = "simple_nerf"
+path = "src/lib.rs"
+
+[dependencies]
+burn = {version = "0.13.2"}
+kdam = { version = "0.5.2", features = ["template"] }
