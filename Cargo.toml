@@ -8,5 +8,5 @@ name = "simple_nerf"
 path = "src/lib.rs"
 
 [dependencies]
-burn = {version = "0.13.2"}
+burn = {version = "0.13.2", features = ["train", "wgpu"]}
 kdam = { version = "0.5.2", features = ["template"] }
