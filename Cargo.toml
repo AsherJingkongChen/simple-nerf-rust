@@ -9,8 +9,8 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.86"
-burn = {version = "0.13.2", features = ["train", "wgpu"] }
-kdam = { version = "0.5.2", features = ["template"] }
-npyz = { version = "0.8.3", features = ["derive"] }
-reqwest = { version = "0.12.5", features = ["blocking"] }
-zip = "2.1.3"
+burn = {version = "0.13.2", features = ["train", "wgpu"]}
+kdam = {version = "0.5.2", features = ["template"]}
+npyz = {git = "https://github.com/KeKsBoTer/npyz.git", rev = "09bd710f347e6d43f0859bdc86f8cb960f9f5383", features = ["bytemuck"]}
+reqwest = {version = "0.12.5", features = ["blocking"]}
+zip = {version = "2.1.3", default-features = false, features = ["deflate", "zstd"]}
