@@ -11,8 +11,15 @@ pub struct VolumetricSceneConfig {
 pub struct VolumetricScene<B: Backend> {
     input_encoder: positional_encoder::PositionalEncoder<B>,
     hidden_layers: Vec<nn::Linear<B>>,
-    output_layer: nn::Linear<B>,
+    output_layer_colors: nn::Linear<B>,
+    output_layer_opacities: nn::Linear<B>,
     skip_indexs: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct VolumetricSceneOutput<B: Backend> {
+    pub colors: Tensor<B, 2>,
+    pub opacities: Tensor<B, 2>,
 }
 
 impl VolumetricSceneConfig {
@@ -22,7 +29,6 @@ impl VolumetricSceneConfig {
     ) -> Result<VolumetricScene<B>, String> {
         let i = self.input_encoder.get_output_size(6);
         let h = self.hidden_size;
-        let o = 4;
         Ok(VolumetricScene {
             input_encoder: self.input_encoder.init(device)?,
             hidden_layers: vec![
@@ -35,7 +41,8 @@ impl VolumetricSceneConfig {
                 nn::LinearConfig::new(h, h).init(device),
                 nn::LinearConfig::new(h, h).init(device)
             ],
-            output_layer: nn::LinearConfig::new(h, o).init(device),
+            output_layer_colors: nn::LinearConfig::new(h, 3).init(device),
+            output_layer_opacities: nn::LinearConfig::new(h, 1).init(device),
             skip_indexs: vec![5],
         })
     }
@@ -44,30 +51,27 @@ impl VolumetricSceneConfig {
 impl<B: Backend> VolumetricScene<B> {
     pub fn forward(
         &self,
-        positions: Tensor<B, 2>,
-        directions: Tensor<B, 2>
-    ) -> Tensor<B, 2> {
+        directions: Tensor<B, 2>,
+        positions: Tensor<B, 2>
+    ) -> VolumetricSceneOutput<B> {
         let inputs = self.input_encoder.forward(
-            Tensor::cat(vec![positions, directions], 1)
+            Tensor::cat(vec![directions, positions], 1)
         );
-        let size = inputs.dims()[0];
-        let mut outputs = inputs.clone();
+        let mut features = inputs.clone();
         for (index, layer) in self.hidden_layers.iter().enumerate() {
             if self.skip_indexs.contains(&index) {
-                outputs = Tensor::cat(vec![outputs, inputs.clone()], 1);
+                features = Tensor::cat(vec![features, inputs.clone()], 1);
             }
-            outputs = layer.forward(outputs);
-            outputs = activation::relu(outputs);
+            features = layer.forward(features);
+            features = activation::relu(features);
         }
-        outputs = self.output_layer.forward(outputs);
-        outputs = Tensor::cat(
-            vec![
-                activation::sigmoid(outputs.clone().slice([0..size, 0..3])),
-                activation::relu(outputs.slice([0..size, 3..4]))
-            ],
-            1
-        );
-        outputs
+        let colors = activation::sigmoid(self.output_layer_colors.forward(features.clone()));
+        let opacities = activation::relu(self.output_layer_opacities.forward(features));
+
+        VolumetricSceneOutput {
+            colors,
+            opacities,
+        }
     }
 }
 
@@ -95,6 +99,8 @@ mod tests {
         );
         let directions = positions.random_like(Distribution::Default);
         let outputs = model.forward(positions, directions);
-        assert_eq!(outputs.dims(), [123, 4]);
+
+        assert_eq!(outputs.colors.dims(), [123, 3]);
+        assert_eq!(outputs.opacities.dims(), [123, 1]);
     }
 }

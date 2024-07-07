@@ -19,7 +19,7 @@ impl PositionalEncoderConfig {
     ) -> Result<PositionalEncoder<B>, String> {
         let encoding_factor = self.encoding_factor;
         if encoding_factor == 0 {
-            return Err("Encoding factor must be greater than 0".to_string());
+            return Err("Encoding factor must be greater than 0".into());
         }
 
         let shape = [1, 2 * encoding_factor, 1];
