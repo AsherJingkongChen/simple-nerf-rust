@@ -1,7 +1,8 @@
 use burn::{data::dataset::Dataset, prelude::*, tensor::Distribution};
 use npyz::{npz, NpyFile};
+use regex::Regex;
 use reqwest::IntoUrl;
-use std::{io, ops::Range, path::Path};
+use std::{fs::File, io, ops::Range, path::Path};
 use zip::ZipArchive;
 
 #[derive(Config, Debug)]
@@ -63,19 +64,19 @@ impl SimpleNerfDatasetConfig {
             }
         })?;
 
-        let mut reader = ZipArchive::new(reader)?;
+        let mut archive = ZipArchive::new(reader)?;
 
-        let focal = *NpyFile::new(
-            reader.by_name(&npz::file_name_from_array_name("focal"))?,
-        )?
+        let focal = *NpyFile::new(io::BufReader::new(
+            archive.by_name(&npz::file_name_from_array_name("focal"))?,
+        ))?
         .into_vec::<f64>()?
         .get(0)
         .ok_or(io::ErrorKind::InvalidData)? as f32;
 
         let images = {
-            let array = NpyFile::new(
-                reader.by_name(&npz::file_name_from_array_name("images"))?,
-            )?;
+            let array = NpyFile::new(io::BufReader::new(
+                archive.by_name(&npz::file_name_from_array_name("images"))?,
+            ))?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 4>::from_data(
                 Data::new(array.into_vec()?, shape),
@@ -84,9 +85,9 @@ impl SimpleNerfDatasetConfig {
         };
 
         let poses = {
-            let array = NpyFile::new(
-                reader.by_name(&npz::file_name_from_array_name("poses"))?,
-            )?;
+            let array = NpyFile::new(io::BufReader::new(
+                archive.by_name(&npz::file_name_from_array_name("poses"))?,
+            ))?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 3>::from_data(
                 Data::new(array.into_vec()?, shape),
@@ -175,7 +176,7 @@ impl SimpleNerfDatasetConfig {
         file_path: impl AsRef<Path>,
         device: &B::Device,
     ) -> io::Result<SimpleNerfDataset<B>> {
-        self.init_from_reader(std::fs::File::open(file_path)?, device)
+        self.init_from_reader(File::open(file_path)?, device)
     }
 
     pub fn init_from_url<B: Backend<FloatElem = f32>>(
@@ -194,6 +195,18 @@ impl SimpleNerfDatasetConfig {
             ),
             device,
         )
+    }
+
+    pub fn init_from_file_path_or_url<B: Backend<FloatElem = f32>>(
+        &self,
+        file_path_or_url: &str,
+        device: &B::Device,
+    ) -> io::Result<SimpleNerfDataset<B>> {
+        if Regex::new(r"https?://").unwrap().is_match(file_path_or_url) {
+            self.init_from_url(file_path_or_url, device)
+        } else {
+            self.init_from_file_path(file_path_or_url, device)
+        }
     }
 }
 

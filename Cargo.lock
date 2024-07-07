@@ -2081,11 +2081,10 @@ dependencies = [
 [[package]]
 name = "npyz"
 version = "0.8.3"
-source = "git+https://github.com/KeKsBoTer/npyz.git?rev=09bd710f347e6d43f0859bdc86f8cb960f9f5383#09bd710f347e6d43f0859bdc86f8cb960f9f5383"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13f27ea175875c472b3df61ece89a6d6ef4e0627f43704e400c782f174681ebd"
 dependencies = [
- "bytemuck",
  "byteorder",
- "half",
  "num-bigint",
  "py_literal",
 ]
@@ -3106,6 +3105,7 @@ dependencies = [
  "burn",
  "kdam",
  "npyz",
+ "regex",
  "reqwest",
  "zip 2.1.3",
 ]
