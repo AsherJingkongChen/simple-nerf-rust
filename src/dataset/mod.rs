@@ -4,7 +4,7 @@ use reqwest::IntoUrl;
 use std::{ io, ops::Range, path::Path };
 use zip::ZipArchive;
 
-#[derive(Clone, Debug)]
+#[derive(Config, Debug)]
 pub struct SimpleNerfDatasetConfig {
     pub points_per_ray: usize,
     pub distance_range: Range<f32>,
@@ -259,7 +259,8 @@ for SimpleNerfDataset<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::backend;
+
+    type Backend = burn::backend::Wgpu;
 
     const TEST_DATA_FILE_PATH: &str = "resources/lego-tiny/data.npz";
     const TEST_DATA_URL: &str =
@@ -267,7 +268,6 @@ mod tests {
 
     #[test]
     fn output_shape() {
-        type Backend = backend::Wgpu;
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {
@@ -285,6 +285,7 @@ mod tests {
         assert_eq!(item.distances.dims(), [100, 100, 7, 1]);
         assert_eq!(item.image.dims(), [100, 100, 3]);
         assert_eq!(item.positions.dims(), [100, 100, 7, 3]);
+        assert_eq!(item.positions.dims(), item.directions.dims());
 
         let inners = dataset.inners;
         assert_eq!(inners.len(), 106);
@@ -301,7 +302,6 @@ mod tests {
 
     #[test]
     fn remote_retrieval() {
-        type Backend = backend::Wgpu;
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {
@@ -316,7 +316,6 @@ mod tests {
 
     #[test]
     fn splitting() {
-        type Backend = backend::Wgpu;
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {

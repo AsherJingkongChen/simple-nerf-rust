@@ -1,7 +1,7 @@
 use burn::prelude::*;
 use std::f32::consts::PI;
 
-#[derive(Debug)]
+#[derive(Config, Debug)]
 pub struct PositionalEncoderConfig {
     pub encoding_factor: usize,
 }
@@ -66,11 +66,11 @@ impl<B: Backend> PositionalEncoder<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::backend;
+
+    type Backend = burn::backend::Wgpu;
 
     #[test]
     fn output_shape() {
-        type Backend = backend::Wgpu;
         let device = Default::default();
 
         let config = PositionalEncoderConfig {
@@ -88,7 +88,7 @@ mod tests {
         );
 
         let config = PositionalEncoderConfig {
-            encoding_factor: 12,
+            encoding_factor: 4,
         };
         let model = config.init::<Backend>(&device);
         assert!(model.is_ok());
