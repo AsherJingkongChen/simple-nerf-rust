@@ -1,5 +1,4 @@
 use crate::*;
-
 use burn::{ prelude::*, tensor::activation };
 
 #[derive(Config, Debug)]
@@ -24,7 +23,6 @@ impl VolumetricSceneConfig {
         let i = self.input_encoder.get_output_size(6);
         let h = self.hidden_size;
         let o = 4;
-        println!("i: {}, h: {}, o: {}", i, h, o);
         Ok(VolumetricScene {
             input_encoder: self.input_encoder.init(device)?,
             hidden_layers: vec![

@@ -48,7 +48,21 @@ impl SimpleNerfDatasetConfig {
         reader: R,
         device: &B::Device
     ) -> io::Result<SimpleNerfDataset<B>> {
-        let parse_err = io::ErrorKind::InvalidData;
+        let points_per_ray = self.points_per_ray;
+        if points_per_ray == 0 {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+
+        let distance_range = {
+            if self.distance_range.start == self.distance_range.end {
+                Err(io::ErrorKind::InvalidData)
+            } else if self.distance_range.end < self.distance_range.start {
+                Ok(self.distance_range.end..self.distance_range.start)
+            } else {
+                Ok(self.distance_range.clone())
+            }
+        }?;
+
         let mut reader = ZipArchive::new(reader)?;
 
         let focal = *NpyFile::new(
@@ -56,7 +70,7 @@ impl SimpleNerfDatasetConfig {
         )?
             .into_vec::<f64>()?
             .get(0)
-            .ok_or(parse_err)? as f32;
+            .ok_or(io::ErrorKind::InvalidData)? as f32;
 
         let images = {
             let array = NpyFile::new(
@@ -83,10 +97,10 @@ impl SimpleNerfDatasetConfig {
         let [image_count, height, width, channel_count] = images.dims();
         let pose_count = poses.dims()[0];
         if image_count != pose_count {
-            return Err(parse_err.into());
+            return Err(io::ErrorKind::InvalidData.into());
         }
         if channel_count != 3 {
-            return Err(parse_err.into());
+            return Err(io::ErrorKind::InvalidData.into());
         }
 
         let planes = {
@@ -128,18 +142,18 @@ impl SimpleNerfDatasetConfig {
             .swap_dims(4, 3)
             .expand(directions.shape());
 
-        let directions = directions.repeat(3, self.points_per_ray);
+        let directions = directions.repeat(3, points_per_ray);
 
         let distances = (
             Tensor::<B, 1, Int>
-                ::arange(0..self.points_per_ray as i64, device)
+                ::arange(0..points_per_ray as i64, device)
                 .float() *
-                ((self.distance_range.end - self.distance_range.start) /
-                    (self.points_per_ray as f32)) +
-            self.distance_range.start
+                ((distance_range.end - distance_range.start) /
+                    (points_per_ray as f32)) +
+            distance_range.start
         )
             .unsqueeze_dims::<5>(&[0, 0, 0, -1])
-            .expand([image_count, height, width, self.points_per_ray, 1]);
+            .expand([image_count, height, width, points_per_ray, 1]);
 
         let inners = directions
             .iter_dim(0)
@@ -227,19 +241,25 @@ for SimpleNerfDataset<B> {
 
         let directions = Tensor::from_data(inner.directions, &self.device);
 
-        let distance_value = {
-            let values = inner.distances.value.get(0..2).unwrap_or(&[0.0, 0.0]);
-            values[1] - values[0]
-        };
-        let mut distances = Tensor::from_data(inner.distances, &self.device);
-        if self.has_noisy_distance {
-            let noises = distances.random_like(
-                Distribution::Uniform(0.0, distance_value as f64)
+        let distances = {
+            let distance = {
+                let values = inner.distances.value
+                    .get(0..2)
+                    .unwrap_or(&[0.0, 0.0]);
+                values[1] - values[0]
+            };
+            let mut distances = Tensor::from_data(
+                inner.distances,
+                &self.device
             );
-            distances = distances + noises;
-            println!("intv: {:?}", distance_value);
-        }
-        let distances = distances;
+            if self.has_noisy_distance {
+                let noises = distances.random_like(
+                    Distribution::Uniform(0.0, distance as f64)
+                );
+                distances = distances + noises;
+            }
+            distances
+        };
 
         let positions: Tensor<B, 4> = Tensor::from_data(
             inner.origins,
@@ -274,7 +294,7 @@ mod tests {
             points_per_ray: 7,
             distance_range: 2.0..6.0,
         }).init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
-        assert!(dataset.is_ok());
+        assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();
         let item = dataset.get(0);
@@ -308,7 +328,7 @@ mod tests {
             points_per_ray: 7,
             distance_range: 2.0..6.0,
         }).init_from_url::<Backend>(TEST_DATA_URL, &device);
-        assert!(dataset.is_ok());
+        assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();
         assert_eq!(dataset.inners.len(), 106);
@@ -322,7 +342,7 @@ mod tests {
             points_per_ray: 8,
             distance_range: 2.0..6.0,
         }).init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
-        assert!(dataset.is_ok());
+        assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();
         let datasets = dataset.split_for_training(0.8);

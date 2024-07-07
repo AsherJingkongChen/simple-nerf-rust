@@ -77,7 +77,7 @@ mod tests {
             encoding_factor: 10,
         };
         let model = config.init::<Backend>(&device);
-        assert!(model.is_ok());
+        assert!(model.is_ok(), "Error: {}", model.unwrap_err());
 
         let model = model.unwrap();
         let input = Tensor::from_floats([[1.0, -2.0, 0.0]], &device);
@@ -91,7 +91,7 @@ mod tests {
             encoding_factor: 4,
         };
         let model = config.init::<Backend>(&device);
-        assert!(model.is_ok());
+        assert!(model.is_ok(), "Error: {}", model.unwrap_err());
 
         let model = model.unwrap();
         let input = Tensor::from_floats([[1.0, -2.5, 0.5, 3.0, -5.5]], &device);
