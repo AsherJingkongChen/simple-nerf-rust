@@ -55,12 +55,19 @@ impl<B: Backend> PositionalEncoder<B> {
         coordinates: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
         let coordinates = coordinates.unsqueeze_dim::<3>(1);
-        let features_shape = [coordinates.dims()[0] as i32, -1];
-        let features = (coordinates.clone() * self.freqs.clone()
-            + self.phases.clone())
-        .sin();
-        let features =
-            Tensor::cat(vec![coordinates, features], 1).reshape(features_shape);
+        let features = {
+            let shape = [coordinates.dims()[0] as i32, -1];
+            Tensor::cat(
+                vec![
+                    coordinates.clone(),
+                    (coordinates * self.freqs.clone()
+                        + self.phases.clone())
+                    .sin(),
+                ],
+                1,
+            )
+            .reshape(shape)
+        };
 
         features
     }
