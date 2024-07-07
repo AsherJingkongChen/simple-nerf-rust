@@ -1,5 +1,5 @@
 use crate::*;
-use burn::{ prelude::*, tensor::activation };
+use burn::{prelude::*, tensor::activation};
 
 #[derive(Config, Debug)]
 pub struct VolumetricSceneConfig {
@@ -25,7 +25,7 @@ pub struct VolumetricSceneOutput<B: Backend> {
 impl VolumetricSceneConfig {
     pub fn init<B: Backend>(
         &self,
-        device: &B::Device
+        device: &B::Device,
     ) -> Result<VolumetricScene<B>, String> {
         let i = self.input_encoder.get_output_size(6);
         let h = self.hidden_size;
@@ -39,7 +39,7 @@ impl VolumetricSceneConfig {
                 nn::LinearConfig::new(h, h).init(device),
                 nn::LinearConfig::new(h + i, h).init(device),
                 nn::LinearConfig::new(h, h).init(device),
-                nn::LinearConfig::new(h, h).init(device)
+                nn::LinearConfig::new(h, h).init(device),
             ],
             output_layer_colors: nn::LinearConfig::new(h, 3).init(device),
             output_layer_opacities: nn::LinearConfig::new(h, 1).init(device),
@@ -52,11 +52,11 @@ impl<B: Backend> VolumetricScene<B> {
     pub fn forward(
         &self,
         directions: Tensor<B, 2>,
-        positions: Tensor<B, 2>
+        positions: Tensor<B, 2>,
     ) -> VolumetricSceneOutput<B> {
-        let inputs = self.input_encoder.forward(
-            Tensor::cat(vec![directions, positions], 1)
-        );
+        let inputs = self
+            .input_encoder
+            .forward(Tensor::cat(vec![directions, positions], 1));
         let mut features = inputs.clone();
         for (index, layer) in self.hidden_layers.iter().enumerate() {
             if self.skip_indexs.contains(&index) {
@@ -65,8 +65,11 @@ impl<B: Backend> VolumetricScene<B> {
             features = layer.forward(features);
             features = activation::relu(features);
         }
-        let colors = activation::sigmoid(self.output_layer_colors.forward(features.clone()));
-        let opacities = activation::relu(self.output_layer_opacities.forward(features));
+        let colors = activation::sigmoid(
+            self.output_layer_colors.forward(features.clone()),
+        );
+        let opacities =
+            activation::relu(self.output_layer_opacities.forward(features));
 
         VolumetricSceneOutput {
             colors,
@@ -92,11 +95,8 @@ mod tests {
         };
         let device = Default::default();
         let model = config.init::<Backend>(&device).unwrap();
-        let positions = Tensor::random(
-            [123, 3],
-            Distribution::Default,
-            &device
-        );
+        let positions =
+            Tensor::random([123, 3], Distribution::Default, &device);
         let directions = positions.random_like(Distribution::Default);
         let outputs = model.forward(positions, directions);
 

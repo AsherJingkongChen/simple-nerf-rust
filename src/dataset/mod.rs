@@ -1,7 +1,7 @@
-use burn::{ data::dataset::Dataset, prelude::*, tensor::Distribution };
-use npyz::{ NpyFile, npz };
+use burn::{data::dataset::Dataset, prelude::*, tensor::Distribution};
+use npyz::{npz, NpyFile};
 use reqwest::IntoUrl;
-use std::{ io, ops::Range, path::Path };
+use std::{io, ops::Range, path::Path};
 use zip::ZipArchive;
 
 #[derive(Config, Debug)]
@@ -42,18 +42,18 @@ pub struct SimpleNerfDatasetSplit<B: Backend> {
 impl SimpleNerfDatasetConfig {
     pub fn init_from_reader<
         B: Backend<FloatElem = f32>,
-        R: io::Read + io::Seek
+        R: io::Read + io::Seek,
     >(
         &self,
         reader: R,
-        device: &B::Device
+        device: &B::Device,
     ) -> io::Result<SimpleNerfDataset<B>> {
         let points_per_ray = self.points_per_ray;
         if points_per_ray == 0 {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        let distance_range = {
+        let distance_range = ({
             if self.distance_range.start == self.distance_range.end {
                 Err(io::ErrorKind::InvalidData)
             } else if self.distance_range.end < self.distance_range.start {
@@ -61,36 +61,36 @@ impl SimpleNerfDatasetConfig {
             } else {
                 Ok(self.distance_range.clone())
             }
-        }?;
+        })?;
 
         let mut reader = ZipArchive::new(reader)?;
 
         let focal = *NpyFile::new(
-            reader.by_name(&npz::file_name_from_array_name("focal"))?
+            reader.by_name(&npz::file_name_from_array_name("focal"))?,
         )?
-            .into_vec::<f64>()?
-            .get(0)
-            .ok_or(io::ErrorKind::InvalidData)? as f32;
+        .into_vec::<f64>()?
+        .get(0)
+        .ok_or(io::ErrorKind::InvalidData)? as f32;
 
         let images = {
             let array = NpyFile::new(
-                reader.by_name(&npz::file_name_from_array_name("images"))?
+                reader.by_name(&npz::file_name_from_array_name("images"))?,
             )?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 4>::from_data(
                 Data::new(array.into_vec()?, shape),
-                device
+                device,
             )
         };
 
         let poses = {
             let array = NpyFile::new(
-                reader.by_name(&npz::file_name_from_array_name("poses"))?
+                reader.by_name(&npz::file_name_from_array_name("poses"))?,
             )?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 3>::from_data(
                 Data::new(array.into_vec()?, shape),
-                device
+                device,
             )
         };
 
@@ -106,35 +106,30 @@ impl SimpleNerfDatasetConfig {
         let planes = {
             let planes_shape = [1, height, width, 1, 3];
             let plane_shape = [height, width];
-            let plane_x =
-                (Tensor::arange(0..width as i64, device)
-                    .float()
-                    .unsqueeze_dim::<2>(0)
-                    .expand(plane_shape) -
-                    (width as f32) / 2.0) /
-                focal;
-            let plane_y =
-                (-Tensor::arange(0..height as i64, device)
-                    .float()
-                    .unsqueeze_dim::<2>(1)
-                    .expand(plane_shape) +
-                    (height as f32) / 2.0) /
-                focal;
+            let plane_x = (Tensor::arange(0..width as i64, device)
+                .float()
+                .unsqueeze_dim::<2>(0)
+                .expand(plane_shape)
+                - (width as f32) / 2.0)
+                / focal;
+            let plane_y = (-Tensor::arange(0..height as i64, device)
+                .float()
+                .unsqueeze_dim::<2>(1)
+                .expand(plane_shape)
+                + (height as f32) / 2.0)
+                / focal;
             let plane_z = Tensor::full(plane_shape, -1.0, device);
-            Tensor::<B, 2>
-                ::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
+            Tensor::<B, 2>::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
                 .reshape(planes_shape)
         };
 
-        let directions = (
-            planes *
-            poses
+        let directions = (planes
+            * poses
                 .clone()
                 .slice([0..image_count, 0..3, 0..3])
-                .unsqueeze_dims::<5>(&[1, 1])
-        )
-            .sum_dim(4)
-            .swap_dims(4, 3);
+                .unsqueeze_dims::<5>(&[1, 1]))
+        .sum_dim(4)
+        .swap_dims(4, 3);
 
         let origins = poses
             .slice([0..image_count, 0..3, 3..4])
@@ -144,16 +139,14 @@ impl SimpleNerfDatasetConfig {
 
         let directions = directions.repeat(3, points_per_ray);
 
-        let distances = (
-            Tensor::<B, 1, Int>
-                ::arange(0..points_per_ray as i64, device)
-                .float() *
-                ((distance_range.end - distance_range.start) /
-                    (points_per_ray as f32)) +
-            distance_range.start
-        )
-            .unsqueeze_dims::<5>(&[0, 0, 0, -1])
-            .expand([image_count, height, width, points_per_ray, 1]);
+        let distances =
+            (Tensor::<B, 1, Int>::arange(0..points_per_ray as i64, device)
+                .float()
+                * ((distance_range.end - distance_range.start)
+                    / (points_per_ray as f32))
+                + distance_range.start)
+                .unsqueeze_dims::<5>(&[0, 0, 0, -1])
+                .expand([image_count, height, width, points_per_ray, 1]);
 
         let inners = directions
             .iter_dim(0)
@@ -180,7 +173,7 @@ impl SimpleNerfDatasetConfig {
     pub fn init_from_file_path<B: Backend<FloatElem = f32>>(
         &self,
         file_path: impl AsRef<Path>,
-        device: &B::Device
+        device: &B::Device,
     ) -> io::Result<SimpleNerfDataset<B>> {
         self.init_from_reader(std::fs::File::open(file_path)?, device)
     }
@@ -188,29 +181,30 @@ impl SimpleNerfDatasetConfig {
     pub fn init_from_url<B: Backend<FloatElem = f32>>(
         &self,
         url: impl IntoUrl,
-        device: &B::Device
+        device: &B::Device,
     ) -> io::Result<SimpleNerfDataset<B>> {
         self.init_from_reader(
             io::Cursor::new(
-                reqwest::blocking
-                    ::get(url)
+                reqwest::blocking::get(url)
                     .or(Err(io::ErrorKind::ConnectionRefused))?
                     .error_for_status()
                     .or(Err(io::ErrorKind::NotFound))?
                     .bytes()
-                    .or(Err(io::ErrorKind::Interrupted))?
+                    .or(Err(io::ErrorKind::Interrupted))?,
             ),
-            device
+            device,
         )
     }
 }
 
 impl<B: Backend> SimpleNerfDataset<B> {
-    pub fn split_for_training(self, ratio: f32) -> SimpleNerfDatasetSplit<B> {
+    pub fn split_for_training(
+        self,
+        ratio: f32,
+    ) -> SimpleNerfDatasetSplit<B> {
         let (inners_left, inners_right) = self.inners.split_at(
-            (
-                ratio.clamp(0.0, 1.0) * (self.inners.len() as f32)
-            ).round() as usize
+            (ratio.clamp(0.0, 1.0) * (self.inners.len() as f32)).round()
+                as usize,
         );
 
         SimpleNerfDatasetSplit {
@@ -229,12 +223,16 @@ impl<B: Backend> SimpleNerfDataset<B> {
 }
 
 impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem<B>>
-for SimpleNerfDataset<B> {
+    for SimpleNerfDataset<B>
+{
     fn len(&self) -> usize {
         self.inners.len()
     }
 
-    fn get(&self, index: usize) -> Option<SimpleNerfDatasetItem<B>> {
+    fn get(
+        &self,
+        index: usize,
+    ) -> Option<SimpleNerfDatasetItem<B>> {
         let inner = self.inners.get(index)?.clone();
 
         let image = Tensor::from_data(inner.image, &self.device);
@@ -243,29 +241,23 @@ for SimpleNerfDataset<B> {
 
         let distances = {
             let distance = {
-                let values = inner.distances.value
-                    .get(0..2)
-                    .unwrap_or(&[0.0, 0.0]);
+                let values =
+                    inner.distances.value.get(0..2).unwrap_or(&[0.0, 0.0]);
                 values[1] - values[0]
             };
-            let mut distances = Tensor::from_data(
-                inner.distances,
-                &self.device
-            );
+            let mut distances =
+                Tensor::from_data(inner.distances, &self.device);
             if self.has_noisy_distance {
-                let noises = distances.random_like(
-                    Distribution::Uniform(0.0, distance as f64)
-                );
+                let noises = distances
+                    .random_like(Distribution::Uniform(0.0, distance as f64));
                 distances = distances + noises;
             }
             distances
         };
 
-        let positions: Tensor<B, 4> = Tensor::from_data(
-            inner.origins,
-            &self.device
-        ) +
-        directions.clone() * distances.clone();
+        let positions: Tensor<B, 4> =
+            Tensor::from_data(inner.origins, &self.device)
+                + directions.clone() * distances.clone();
 
         Some(SimpleNerfDatasetItem {
             directions,
@@ -293,7 +285,8 @@ mod tests {
         let dataset = (SimpleNerfDatasetConfig {
             points_per_ray: 7,
             distance_range: 2.0..6.0,
-        }).init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
+        })
+        .init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
         assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();
@@ -327,7 +320,8 @@ mod tests {
         let dataset = (SimpleNerfDatasetConfig {
             points_per_ray: 7,
             distance_range: 2.0..6.0,
-        }).init_from_url::<Backend>(TEST_DATA_URL, &device);
+        })
+        .init_from_url::<Backend>(TEST_DATA_URL, &device);
         assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();
@@ -341,7 +335,8 @@ mod tests {
         let dataset = (SimpleNerfDatasetConfig {
             points_per_ray: 8,
             distance_range: 2.0..6.0,
-        }).init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
+        })
+        .init_from_file_path::<Backend>(TEST_DATA_FILE_PATH, &device);
         assert!(dataset.is_ok(), "Error: {}", dataset.unwrap_err());
 
         let dataset = dataset.unwrap();

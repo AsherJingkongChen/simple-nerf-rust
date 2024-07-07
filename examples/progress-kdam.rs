@@ -21,7 +21,10 @@ fn main() -> Result<()> {
     }
 
     pb.clear()?;
-    pb.set_bar_format("{desc suffix=''} | {total} {unit} | {rate:.1} {unit}/s | {elapsed human=true}").unwrap();
+    pb.set_bar_format(
+        "{desc suffix=''} | {total} {unit} | {rate:.1} {unit}/s | {elapsed human=true}",
+    )
+    .unwrap();
     pb.refresh()?;
     eprintln!();
 
