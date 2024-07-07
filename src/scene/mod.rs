@@ -4,12 +4,12 @@ use burn::{prelude::*, tensor::activation};
 #[derive(Config, Debug)]
 pub struct VolumetricSceneConfig {
     pub hidden_size: usize,
-    pub input_encoder: positional_encoder::PositionalEncoderConfig,
+    pub input_encoder: encoder::PositionalEncoderConfig,
 }
 
 #[derive(Debug, Module)]
 pub struct VolumetricScene<B: Backend> {
-    input_encoder: positional_encoder::PositionalEncoder<B>,
+    input_encoder: encoder::PositionalEncoder<B>,
     hidden_layers: Vec<nn::Linear<B>>,
     output_layer_colors: nn::Linear<B>,
     output_layer_opacities: nn::Linear<B>,
@@ -89,7 +89,7 @@ mod tests {
     fn output_shape() {
         let config = VolumetricSceneConfig {
             hidden_size: 1,
-            input_encoder: positional_encoder::PositionalEncoderConfig {
+            input_encoder: encoder::PositionalEncoderConfig {
                 encoding_factor: 1,
             },
         };

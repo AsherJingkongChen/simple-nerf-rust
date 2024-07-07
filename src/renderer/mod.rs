@@ -5,13 +5,13 @@ use burn::prelude::*;
 pub struct VolumeRendererConfig {
     pub points_per_ray: usize,
     pub rays_per_chunk: usize,
-    pub scene: volumetric_scene::VolumetricSceneConfig,
+    pub scene: scene::VolumetricSceneConfig,
 }
 
 #[derive(Debug, Module)]
 pub struct VolumeRenderer<B: Backend> {
     chunk_size: usize,
-    scene: volumetric_scene::VolumetricScene<B>,
+    scene: scene::VolumetricScene<B>,
 }
 
 impl VolumeRendererConfig {
@@ -121,8 +121,8 @@ mod tests {
         let renderer = VolumeRendererConfig {
             points_per_ray: 16,
             rays_per_chunk: 250,
-            scene: volumetric_scene::VolumetricSceneConfig {
-                input_encoder: positional_encoder::PositionalEncoderConfig {
+            scene: scene::VolumetricSceneConfig {
+                input_encoder: encoder::PositionalEncoderConfig {
                     encoding_factor: 3,
                 },
                 hidden_size: 8,
