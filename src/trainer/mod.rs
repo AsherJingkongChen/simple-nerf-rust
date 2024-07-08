@@ -130,7 +130,7 @@ impl<B: AutodiffBackend> Trainer<B> {
         self.progress_bar.reset(None);
 
         // Training Loop
-        for _ in 0..self.epoch_count {
+        for epoch in 0..self.epoch_count {
             let input = self.dataset_train.get(0);
             if input.is_none() {
                 break;
@@ -142,12 +142,15 @@ impl<B: AutodiffBackend> Trainer<B> {
                 input.distances,
                 input.positions,
             );
+            eprintln!("input_image: {:?}", input.image.clone().max().into_scalar());
+            eprintln!("output_image: {:?}", output_image.clone().max().into_scalar());
 
             let loss = self.criterion.forward(
                 output_image,
                 input.image,
                 loss::Reduction::Mean,
             );
+            eprintln!("loss: {:?}", loss.clone().into_scalar());
 
             let gradients = optim::GradientsParams::from_grads(
                 loss.backward(),
@@ -157,7 +160,7 @@ impl<B: AutodiffBackend> Trainer<B> {
                 optimizer.step(self.learning_rate, self.renderer, gradients);
 
             // Monitoring
-            {
+            if epoch % 20 == 0 {
                 let input = self.dataset_test.get(0);
                 if input.is_none() {
                     continue;
