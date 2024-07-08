@@ -82,7 +82,7 @@ mod tests {
     type Backend = burn::backend::Wgpu;
 
     #[test]
-    fn output_shape() {
+    fn volumetric_scene_output_shape() {
         let config = VolumetricSceneConfig {
             hidden_size: 1,
             input_encoder: encoder::PositionalEncoderConfig {

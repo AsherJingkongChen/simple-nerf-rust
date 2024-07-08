@@ -115,7 +115,7 @@ mod tests {
     type Backend = burn::backend::Wgpu;
 
     #[test]
-    fn output_shape() {
+    fn volume_renderer_output_shape() {
         let device = Default::default();
         let renderer = VolumeRendererConfig {
             points_per_ray: 16,

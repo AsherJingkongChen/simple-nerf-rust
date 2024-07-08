@@ -80,7 +80,7 @@ mod tests {
     type Backend = burn::backend::Wgpu;
 
     #[test]
-    fn output_shape() {
+    fn positional_encoder_output_shape() {
         let device = Default::default();
 
         let config = PositionalEncoderConfig {

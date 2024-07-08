@@ -294,7 +294,7 @@ mod tests {
         "https://raw.githubusercontent.com/AsherJingkongChen/simple-nerf-rust/main/resources/lego-tiny/data.npz";
 
     #[test]
-    fn output_shape() {
+    fn simple_nerf_dataset_output_shape() {
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn remote_retrieval() {
+    fn simple_nerf_dataset_remote_retrieval() {
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {
@@ -344,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn splitting() {
+    fn simple_nerf_dataset_splitting() {
         let device = Default::default();
 
         let dataset = (SimpleNerfDatasetConfig {
