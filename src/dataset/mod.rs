@@ -124,7 +124,7 @@ impl SimpleNerfDatasetConfig {
                 + (height as f32) / 2.0)
                 / focal;
             let plane_z = Tensor::full([height, width], -1.0, device);
-            Tensor::<B, 2>::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
+            Tensor::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
                 .reshape(planes_shape)
         };
 
