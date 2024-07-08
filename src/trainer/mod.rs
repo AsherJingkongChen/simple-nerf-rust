@@ -52,7 +52,6 @@ impl TrainerConfig {
         &self,
         device: &B::Device,
     ) -> Result<Trainer<B>> {
-        #[cfg(feature = "candle")]
         if let Some(seed) = self.seed {
             B::seed(seed);
         }
@@ -89,7 +88,7 @@ impl TrainerConfig {
                 colour = "orangered",
                 dynamic_ncols = true,
                 force_refresh = true,
-                total = 300,
+                total = self.epoch_count,
                 unit = "steps",
                 bar_format = "{desc suffix=''} {postfix} ┃ \
                 {percentage:.0}% = {count}/{total} {unit} ┃ \
@@ -101,7 +100,7 @@ impl TrainerConfig {
             bar
         };
 
-        fs::remove_dir_all(&artifact_directory)?;
+        let _ = fs::remove_dir_all(&artifact_directory);
         fs::create_dir_all(&artifact_directory)?;
         self.save(artifact_directory.join("config.json"))?;
 
@@ -121,7 +120,6 @@ impl TrainerConfig {
 
 impl<B: AutodiffBackend<FloatElem = f32>> Trainer<B> {
     pub fn train(&self) -> Result<renderer::VolumeRenderer<B::InnerBackend>> {
-        #[cfg(feature = "candle")]
         if let Some(seed) = self.seed {
             B::seed(seed);
         }
