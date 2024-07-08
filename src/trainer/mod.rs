@@ -128,6 +128,7 @@ impl<B: AutodiffBackend<FloatElem = f32>> Trainer<B> {
         let mut model = self.model.clone();
         let mut optimizer = optim::AdamConfig::new().init();
         let mut progress_bar = self.progress_bar.clone();
+        progress_bar.reset(None);
 
         term::init(stderr().is_terminal());
 

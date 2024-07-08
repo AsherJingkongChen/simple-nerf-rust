@@ -42,40 +42,38 @@ impl<B: Backend> VolumeRenderer<B> {
     ) -> Tensor<B, 3> {
         let [height, width, points_per_ray, ..] = directions.dims();
 
-        let scene_outputs_chunks = {
+        let (colors, opacities) = {
+            let colors_shape = [height, width, points_per_ray, 3];
+            let opacities_shape = [height, width, points_per_ray, 1];
             let chunk_count = (((height * width * points_per_ray) as f32)
                 / (self.chunk_size as f32))
                 .round() as usize;
-            let directions_chunks =
-                directions.flatten::<2>(0, 2).chunk(chunk_count, 0);
-            let positions_chunks =
-                positions.flatten::<2>(0, 2).chunk(chunk_count, 0);
-            directions_chunks.into_iter().zip(positions_chunks.into_iter()).map(
-                |(directions, positions)| {
-                    self.scene.forward(directions, positions)
-                },
-            )
-        };
 
-        let opacities = {
-            let shape = [height, width, points_per_ray, 1];
-            Tensor::cat(
-                scene_outputs_chunks
-                    .clone()
-                    .map(|output| output.opacities)
+            let directions_chunks =
+                directions.reshape([-1, 3]).chunk(chunk_count, 0);
+            let positions_chunks =
+                positions.reshape([-1, 3]).chunk(chunk_count, 0);
+
+            let scene_outputs = Tensor::cat(
+                directions_chunks
+                    .into_iter()
+                    .zip(positions_chunks.into_iter())
+                    .map(|(directions, positions)| {
+                        self.scene.forward(directions, positions)
+                    })
                     .collect(),
                 0,
-            )
-            .reshape(shape)
-        };
+            );
 
-        let colors = {
-            let shape = [height, width, points_per_ray, 3];
-            Tensor::cat(
-                scene_outputs_chunks.map(|output| output.colors).collect(),
-                0,
+            let size = scene_outputs.dims()[0];
+
+            (
+                scene_outputs
+                    .clone()
+                    .slice([0..size, 0..3])
+                    .reshape(colors_shape),
+                scene_outputs.slice([0..size, 3..4]).reshape(opacities_shape),
             )
-            .reshape(shape)
         };
 
         let planar_rgb = {
