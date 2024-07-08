@@ -49,10 +49,7 @@ pub struct SimpleNerfDatasetSplit<B: Backend> {
 }
 
 impl SimpleNerfDatasetConfig {
-    pub fn init_from_reader<
-        B: Backend,
-        R: io::Read + io::Seek,
-    >(
+    pub fn init_from_reader<B: Backend, R: io::Read + io::Seek>(
         &self,
         reader: R,
         device: &B::Device,
@@ -164,7 +161,10 @@ impl SimpleNerfDatasetConfig {
             .zip(origins.iter_dim(0))
             .map(|(((directions, distances), image), origins)| {
                 SimpleNerfDatasetInner {
-                    directions: directions.squeeze::<4>(0).into_data().convert(),
+                    directions: directions
+                        .squeeze::<4>(0)
+                        .into_data()
+                        .convert(),
                     distances: distances.squeeze::<4>(0).into_data().convert(),
                     image: image.squeeze::<3>(0).into_data().convert(),
                     origins: origins.squeeze::<4>(0).into_data().convert(),
@@ -243,9 +243,7 @@ impl<B: Backend> SimpleNerfDataset<B> {
     }
 }
 
-impl<B: Backend> Dataset<SimpleNerfDatasetItem>
-    for SimpleNerfDataset<B>
-{
+impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
     fn len(&self) -> usize {
         self.inners.len()
     }
@@ -275,8 +273,10 @@ impl<B: Backend> Dataset<SimpleNerfDatasetItem>
         let positions = {
             let positions: Tensor<B, 4> =
                 Tensor::from_data(inner.origins.convert(), &self.device)
-                    + Tensor::from_data(inner.directions.clone().convert(), &self.device)
-                        * distances.clone();
+                    + Tensor::from_data(
+                        inner.directions.clone().convert(),
+                        &self.device,
+                    ) * distances.clone();
             positions.into_data().convert()
         };
 

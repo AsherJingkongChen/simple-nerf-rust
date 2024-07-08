@@ -23,32 +23,31 @@ pub struct TrainerConfig {
     pub dataset: dataset::SimpleNerfDatasetConfig,
     pub dataset_file_path_or_url: String,
     pub learning_rate: f64,
-    pub model: renderer::VolumeRendererConfig,
     pub epoch_count: usize,
     pub train_ratio: f32,
+    pub renderer: renderer::VolumeRendererConfig,
     pub seed: Option<u64>,
 }
 
 pub struct Trainer<B: AutodiffBackend> {
     artifact_directory: PathBuf,
-    dataset_test: transform::SamplerDataset<
-        dataset::SimpleNerfDataset<B>,
-        dataset::SimpleNerfDatasetItem,
-    >,
+    criterion: loss::MseLoss<B>,
+    dataset_test: dataset::SimpleNerfDataset<B>,
     dataset_train: transform::SamplerDataset<
         dataset::SimpleNerfDataset<B>,
         dataset::SimpleNerfDatasetItem,
     >,
     device: B::Device,
     epoch_count: usize,
+    metric: metric::PsnrMetric<B::InnerBackend>,
     learning_rate: f64,
-    model: renderer::VolumeRenderer<B>,
     progress_bar: Bar,
     seed: Option<u64>,
+    renderer: renderer::VolumeRenderer<B>,
 }
 
 impl TrainerConfig {
-    pub fn init<B: AutodiffBackend<FloatElem = f32>>(
+    pub fn init<B: AutodiffBackend>(
         &self,
         device: &B::Device,
     ) -> Result<Trainer<B>> {
@@ -58,6 +57,8 @@ impl TrainerConfig {
 
         let artifact_directory = PathBuf::from(&self.artifact_directory);
 
+        let criterion = loss::MseLoss::new();
+
         let (dataset_test, dataset_train) = {
             let datasets = self
                 .dataset
@@ -66,13 +67,9 @@ impl TrainerConfig {
                     device,
                 )?
                 .split_for_training(self.train_ratio);
-            let dataset_test_size = datasets.test.len();
             let dataset_train_size = datasets.train.len();
             (
-                transform::SamplerDataset::new(
-                    datasets.test,
-                    dataset_test_size,
-                ),
+                datasets.test,
                 transform::SamplerDataset::new(
                     datasets.train,
                     dataset_train_size,
@@ -80,11 +77,13 @@ impl TrainerConfig {
             )
         };
 
-        let model = self.model.init(device)?;
+        let metric = metric::PsnrMetric::<B::InnerBackend>::init(device);
+
+        let renderer = self.renderer.init(device)?;
 
         let progress_bar = {
             let mut bar = tqdm!(
-                desc = "Training",
+                desc = format!("Training on {} items", dataset_train.len()),
                 colour = "orangered",
                 dynamic_ncols = true,
                 force_refresh = true,
@@ -96,7 +95,7 @@ impl TrainerConfig {
                 {remaining human=true} \
                 ┃{animation}┃"
             );
-            bar.postfix = format!("on {} items", dataset_train.len());
+            bar.postfix = format!("┃ PSNR = 0.00 dB");
             bar
         };
 
@@ -106,84 +105,122 @@ impl TrainerConfig {
 
         Ok(Trainer {
             artifact_directory,
+            criterion,
             dataset_train,
             dataset_test,
             device: device.clone(),
             epoch_count: self.epoch_count,
             learning_rate: self.learning_rate,
-            model,
+            metric,
+            renderer,
             progress_bar,
             seed: self.seed,
         })
     }
 }
 
-impl<B: AutodiffBackend<FloatElem = f32>> Trainer<B> {
-    pub fn train(&self) -> Result<renderer::VolumeRenderer<B::InnerBackend>> {
+impl<B: AutodiffBackend> Trainer<B> {
+    pub fn fit(mut self) -> Result<()> {
+        let mut optimizer = optim::AdamConfig::new().init();
+
         if let Some(seed) = self.seed {
             B::seed(seed);
         }
-
-        let criterion = loss::MseLoss::new();
-        let mut model = self.model.clone();
-        let mut optimizer = optim::AdamConfig::new().init();
-        let mut progress_bar = self.progress_bar.clone();
-        progress_bar.reset(None);
-
         term::init(stderr().is_terminal());
+        self.progress_bar.reset(None);
 
+        // Training Loop
         for _ in 0..self.epoch_count {
             let input = self.dataset_train.get(0);
             if input.is_none() {
                 break;
             }
-            let input = input.unwrap();
+            let input = input.unwrap().into_batch(&self.device);
 
-            let image_rendered = {
-                let directions =
-                    Tensor::from_data(input.directions, &self.device);
-                let distances =
-                    Tensor::from_data(input.distances, &self.device);
-                let positions =
-                    Tensor::from_data(input.positions, &self.device);
-                model.forward(directions, distances, positions)
-            };
-            let image_true = Tensor::from_data(input.image, &self.device);
+            let output_image = self.renderer.forward(
+                input.directions,
+                input.distances,
+                input.positions,
+            );
 
-            let loss = criterion.forward(
-                image_rendered,
-                image_true,
+            let loss = self.criterion.forward(
+                output_image,
+                input.image,
                 loss::Reduction::Mean,
             );
 
-            let gradients =
-                optim::GradientsParams::from_grads(loss.backward(), &model);
-            model = optimizer.step(self.learning_rate, model, gradients);
+            let gradients = optim::GradientsParams::from_grads(
+                loss.backward(),
+                &self.renderer,
+            );
+            self.renderer =
+                optimizer.step(self.learning_rate, self.renderer, gradients);
 
-            progress_bar.update(1)?;
+            // Monitoring
+            {
+                let input = self.dataset_test.get(0);
+                if input.is_none() {
+                    continue;
+                }
+                let input = input.unwrap().into_batch(&self.device);
+
+                let renderer = self.renderer.valid();
+                let output_image = renderer.forward(
+                    input.directions,
+                    input.distances,
+                    input.positions,
+                );
+                let score_fidelity = self
+                    .metric
+                    .forward(output_image, input.image)
+                    .into_scalar();
+                self.progress_bar.postfix =
+                    format!("┃ PSNR = {:.2} dB", score_fidelity);
+            }
+
+            self.progress_bar.update(1)?;
         }
 
-        progress_bar.clear()?;
-        progress_bar
-            .set_bar_format(
-                "{desc suffix=''} {postfix} ┃ \
-                {total} {unit} ┃ \
-                {rate:.1} {unit}/s ┃ \
-                {elapsed human=true}\n",
-            )
-            .map_err(|e| anyhow!(e))?;
-        progress_bar.set_description("Trained");
-        progress_bar.refresh()?;
+        // End of Training Loop
+        {
+            self.progress_bar.clear()?;
+            self.progress_bar
+                .set_bar_format(
+                    "{desc suffix=''} ┃ \
+                    {total} {unit} ┃ \
+                    {rate:.1} {unit}/s ┃ \
+                    {elapsed human=true}\n",
+                )
+                .map_err(|e| anyhow!(e))?;
+            self.progress_bar.set_description(format!(
+                "Trained on {} items",
+                self.dataset_train.len()
+            ));
+            self.progress_bar.refresh()?;
+        }
 
-        let model_trained = {
-            let model = model.valid();
-            model.clone().save_file(
-                self.artifact_directory.join("model"),
-                &record::NamedMpkGzFileRecorder::<record::FullPrecisionSettings>::new(),
-            )?;
-            model
-        };
+        // Testing
+        println!("Testing on {} items", self.dataset_test.len());
+        let renderer = self.renderer.valid();
+        for (index, input) in self.dataset_test.iter().enumerate() {
+            let input = input.into_batch(&self.device);
+            let output_image = renderer.forward(
+                input.directions,
+                input.distances,
+                input.positions,
+            );
+            let score_fidelity =
+                self.metric.forward(output_image, input.image).into_scalar();
+            println!("No. {:03} ┃ PSNR = {:.2} dB", index + 1, score_fidelity);
+        }
 
-        Ok(model_trained)
+        // Save the Renderer
+        self.renderer.save_file(
+            self.artifact_directory.join("renderer"),
+            &record::NamedMpkFileRecorder::<record::FullPrecisionSettings>::new(
+            ),
+        )?;
+
+        Ok(())
     }
 }
