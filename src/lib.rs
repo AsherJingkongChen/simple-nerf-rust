@@ -11,3 +11,5 @@ pub mod encoder;
 pub mod renderer;
 pub mod scene;
 pub mod trainer;
+
+pub use burn::backend;

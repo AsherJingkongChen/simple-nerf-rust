@@ -27,11 +27,11 @@ struct SimpleNerfDatasetInner {
 }
 
 #[derive(Clone, Debug)]
-pub struct SimpleNerfDatasetItem<B: Backend> {
-    pub directions: Tensor<B, 4>,
-    pub distances: Tensor<B, 4>,
-    pub image: Tensor<B, 3>,
-    pub positions: Tensor<B, 4>,
+pub struct SimpleNerfDatasetItem {
+    pub directions: Data<f32, 4>,
+    pub distances: Data<f32, 4>,
+    pub image: Data<f32, 3>,
+    pub positions: Data<f32, 4>,
 }
 
 #[derive(Clone, Debug)]
@@ -235,7 +235,7 @@ impl<B: Backend> SimpleNerfDataset<B> {
     }
 }
 
-impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem<B>>
+impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem>
     for SimpleNerfDataset<B>
 {
     fn len(&self) -> usize {
@@ -245,12 +245,8 @@ impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem<B>>
     fn get(
         &self,
         index: usize,
-    ) -> Option<SimpleNerfDatasetItem<B>> {
+    ) -> Option<SimpleNerfDatasetItem> {
         let inner = self.inners.get(index)?.clone();
-
-        let image = Tensor::from_data(inner.image, &self.device);
-
-        let directions = Tensor::from_data(inner.directions, &self.device);
 
         let distances = {
             let distance = {
@@ -268,14 +264,20 @@ impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem<B>>
             distances
         };
 
-        let positions: Tensor<B, 4> =
-            Tensor::from_data(inner.origins, &self.device)
-                + directions.clone() * distances.clone();
+        let positions = {
+            let positions: Tensor<B, 4> =
+                Tensor::from_data(inner.origins, &self.device)
+                    + Tensor::from_data(inner.directions.clone(), &self.device)
+                        * distances.clone();
+            positions.into_data()
+        };
+
+        let distances = distances.into_data();
 
         Some(SimpleNerfDatasetItem {
-            directions,
+            directions: inner.directions,
             distances,
-            image,
+            image: inner.image,
             positions,
         })
     }
@@ -307,11 +309,11 @@ mod tests {
         assert!(item.is_some());
 
         let item = item.unwrap();
-        assert_eq!(item.directions.dims(), [100, 100, 7, 3]);
-        assert_eq!(item.distances.dims(), [100, 100, 7, 1]);
-        assert_eq!(item.image.dims(), [100, 100, 3]);
-        assert_eq!(item.positions.dims(), [100, 100, 7, 3]);
-        assert_eq!(item.positions.dims(), item.directions.dims());
+        assert_eq!(item.directions.shape.dims, [100, 100, 7, 3]);
+        assert_eq!(item.distances.shape.dims, [100, 100, 7, 1]);
+        assert_eq!(item.image.shape.dims, [100, 100, 3]);
+        assert_eq!(item.positions.shape.dims, [100, 100, 7, 3]);
+        assert_eq!(item.positions.shape.dims, item.directions.shape.dims);
 
         let inners = dataset.inners;
         assert_eq!(inners.len(), 106);
