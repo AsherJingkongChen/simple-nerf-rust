@@ -5,19 +5,20 @@ use std::io::{stderr, IsTerminal, Result};
 
 fn main() -> Result<()> {
     let mut pb = tqdm!(
+        desc = "Training",
         colour = "orangered",
         dynamic_ncols = true,
         force_refresh = true,
         total = 300,
         unit = "steps",
-        bar_format = "Training {desc suffix=''} ┃ \
-        {percentage:.0}% = {count}/{total} {unit} ┃ \
-        {rate:.1} {unit}/s ┃ \
-        {remaining human=true} \
-        ┃{animation}┃"
+        bar_format = "{desc suffix=''} {postfix} ┃ \
+            {percentage:.0}% = {count}/{total} {unit} ┃ \
+            {rate:.1} {unit}/s ┃ \
+            {remaining human=true} \
+            ┃{animation}┃"
     );
 
-    pb.set_description("on x1234 items");
+    pb.postfix = "on x1234 items".into();
 
     kdam::term::init(stderr().is_terminal());
     for _ in 0..300 {
@@ -27,14 +28,14 @@ fn main() -> Result<()> {
 
     pb.clear()?;
     pb.set_bar_format(
-        "Trained {desc suffix=''} ┃ \
+        "{desc suffix=''} {postfix} ┃ \
         {total} {unit} ┃ \
         {rate:.1} {unit}/s ┃ \
-        {elapsed human=true}",
+        {elapsed human=true}\n",
     )
     .unwrap();
+    pb.set_description("Trained");
     pb.refresh()?;
-    eprintln!();
 
     Ok(())
 }
