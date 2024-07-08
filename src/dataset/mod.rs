@@ -111,20 +111,19 @@ impl SimpleNerfDatasetConfig {
 
         let planes = {
             let planes_shape = [1, height, width, 1, 3];
-            let plane_shape = [height, width];
             let plane_x = (Tensor::arange(0..width as i64, device)
                 .float()
                 .unsqueeze_dim::<2>(0)
-                .expand(plane_shape)
+                .repeat(0, height)
                 - (width as f32) / 2.0)
                 / focal;
             let plane_y = (-Tensor::arange(0..height as i64, device)
                 .float()
                 .unsqueeze_dim::<2>(1)
-                .expand(plane_shape)
+                .repeat(1, width)
                 + (height as f32) / 2.0)
                 / focal;
-            let plane_z = Tensor::full(plane_shape, -1.0, device);
+            let plane_z = Tensor::full([height, width], -1.0, device);
             Tensor::<B, 2>::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
                 .reshape(planes_shape)
         };
@@ -133,13 +132,13 @@ impl SimpleNerfDatasetConfig {
             * poses
                 .clone()
                 .slice([0..image_count, 0..3, 0..3])
-                .unsqueeze_dims::<5>(&[1, 1]))
+                .unsqueeze_dims::<5>(&[1, 2]))
         .sum_dim(4)
         .swap_dims(4, 3);
 
         let origins = poses
             .slice([0..image_count, 0..3, 3..4])
-            .unsqueeze_dims::<5>(&[1, 1])
+            .unsqueeze_dims::<5>(&[1, 2])
             .swap_dims(4, 3)
             .expand(directions.shape());
 
@@ -151,8 +150,11 @@ impl SimpleNerfDatasetConfig {
                 * ((distance_range.end - distance_range.start)
                     / (points_per_ray as f32))
                 + distance_range.start)
-                .unsqueeze_dims::<5>(&[0, 0, 0, -1])
-                .expand([image_count, height, width, points_per_ray, 1]);
+                .unsqueeze::<4>()
+                .repeat(0, image_count)
+                .repeat(1, height)
+                .repeat(2, width)
+                .unsqueeze_dim::<5>(4);
 
         let inners = directions
             .iter_dim(0)

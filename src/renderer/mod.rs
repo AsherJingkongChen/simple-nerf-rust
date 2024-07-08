@@ -42,9 +42,9 @@ impl<B: Backend> VolumeRenderer<B> {
     ) -> Tensor<B, 3> {
         let [height, width, points_per_ray, ..] = directions.dims();
 
-        let (colors, opacities) = {
+        let (colors, densities) = {
             let colors_shape = [height, width, points_per_ray, 3];
-            let opacities_shape = [height, width, points_per_ray, 1];
+            let densities_shape = [height, width, points_per_ray, 1];
             let chunk_count = (((height * width * points_per_ray) as f32)
                 / (self.chunk_size as f32))
                 .round() as usize;
@@ -72,7 +72,7 @@ impl<B: Backend> VolumeRenderer<B> {
                     .clone()
                     .slice([0..size, 0..3])
                     .reshape(colors_shape),
-                scene_outputs.slice([0..size, 3..4]).reshape(opacities_shape),
+                scene_outputs.slice([0..size, 3..4]).reshape(densities_shape),
             )
         };
 
@@ -96,7 +96,8 @@ impl<B: Backend> VolumeRenderer<B> {
                     2,
                 )
             };
-            let translucency = (-opacities * intervals).exp();
+
+            let translucency = (-densities * intervals).exp();
             let transmittance = (-translucency.clone() + 1.0)
                 * (translucency + 1e-6).prod_dim(2);
 
@@ -131,23 +132,17 @@ mod tests {
         assert!(renderer.is_ok(), "Error: {}", renderer.unwrap_err());
 
         let renderer = renderer.unwrap();
-        let directions = Tensor::<burn::backend::Wgpu, 4>::random(
-            [100, 100, 16, 3],
-            Distribution::Default,
-            &device,
-        );
-        let distances = Tensor::<burn::backend::Wgpu, 4>::random(
-            [100, 100, 16, 1],
-            Distribution::Default,
-            &device,
-        );
-        let positions = Tensor::<burn::backend::Wgpu, 4>::random(
-            [100, 100, 16, 3],
-            Distribution::Default,
-            &device,
-        );
+        let directions =
+            Tensor::random([100, 100, 16, 3], Distribution::Default, &device);
+        let distances = Tensor::arange(0..16, &device)
+            .reshape([1, 1, 16, 1])
+            .expand([100, 100, 16, 1])
+            .float()
+            + Tensor::random([100, 100, 16, 1], Distribution::Default, &device);
+        let positions =
+            Tensor::random([100, 100, 16, 3], Distribution::Default, &device);
 
-        let output = renderer.forward(directions, distances, positions);
-        assert_eq!(output.dims(), [100, 100, 3]);
+        let outputs = renderer.forward(directions, distances, positions);
+        assert_eq!(outputs.dims(), [100, 100, 3]);
     }
 }

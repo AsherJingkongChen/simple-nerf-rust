@@ -66,8 +66,8 @@ impl<B: Backend> VolumetricScene<B> {
             let size = features.dims()[0];
             let colors =
                 activation::sigmoid(features.clone().slice([0..size, 0..3]));
-            let opacities = activation::relu(features.slice([0..size, 3..4]));
-            Tensor::cat(vec![colors, opacities], 1)
+            let densities = activation::relu(features.slice([0..size, 3..4]));
+            Tensor::cat(vec![colors, densities], 1)
         };
 
         outputs
@@ -90,12 +90,14 @@ mod tests {
             },
         };
         let device = Default::default();
+
         let model = config.init::<Backend>(&device).unwrap();
+
         let positions =
             Tensor::random([123, 3], Distribution::Default, &device);
         let directions = positions.random_like(Distribution::Default);
-        let outputs = model.forward(positions, directions);
 
+        let outputs = model.forward(positions, directions);
         assert_eq!(outputs.dims(), [123, 4]);
     }
 }
