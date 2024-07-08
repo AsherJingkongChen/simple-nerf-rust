@@ -1,4 +1,5 @@
 use crate::*;
+use anyhow::{bail, Result};
 use burn::prelude::*;
 
 #[derive(Config, Debug)]
@@ -18,12 +19,12 @@ impl VolumeRendererConfig {
     pub fn init<B: Backend>(
         &self,
         device: &B::Device,
-    ) -> Result<VolumeRenderer<B>, String> {
+    ) -> Result<VolumeRenderer<B>> {
         if self.points_per_ray == 0 {
-            return Err("Point count per ray must be greater than 0".into());
+            bail!("Point count per ray must be greater than 0");
         }
         if self.rays_per_chunk == 0 {
-            return Err("Ray count per chunk must be greater than 0".into());
+            bail!("Ray count per chunk must be greater than 0");
         }
         Ok(VolumeRenderer {
             chunk_size: self.points_per_ray * self.rays_per_chunk,

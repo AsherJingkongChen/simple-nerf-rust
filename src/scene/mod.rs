@@ -1,4 +1,5 @@
 use crate::*;
+use anyhow::Result;
 use burn::{prelude::*, tensor::activation};
 
 #[derive(Config, Debug)]
@@ -26,7 +27,7 @@ impl VolumetricSceneConfig {
     pub fn init<B: Backend>(
         &self,
         device: &B::Device,
-    ) -> Result<VolumetricScene<B>, String> {
+    ) -> Result<VolumetricScene<B>> {
         let i = self.input_encoder.get_output_size(6);
         let h = self.hidden_size;
         Ok(VolumetricScene {

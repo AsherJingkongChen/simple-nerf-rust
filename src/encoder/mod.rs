@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use burn::prelude::*;
 use std::f32::consts::PI;
 
@@ -16,10 +17,10 @@ impl PositionalEncoderConfig {
     pub fn init<B: Backend>(
         &self,
         device: &B::Device,
-    ) -> Result<PositionalEncoder<B>, String> {
+    ) -> Result<PositionalEncoder<B>> {
         let encoding_factor = self.encoding_factor;
         if encoding_factor == 0 {
-            return Err("Encoding factor must be greater than 0".into());
+            bail!("Encoding factor must be greater than 0");
         }
 
         let shape = [1, 2 * encoding_factor, 1];
@@ -60,9 +61,8 @@ impl<B: Backend> PositionalEncoder<B> {
             Tensor::cat(
                 vec![
                     coordinates.clone(),
-                    (coordinates * self.freqs.clone()
-                        + self.phases.clone())
-                    .sin(),
+                    (coordinates * self.freqs.clone() + self.phases.clone())
+                        .sin(),
                 ],
                 1,
             )
