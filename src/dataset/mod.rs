@@ -35,6 +35,14 @@ pub struct SimpleNerfDatasetItem {
 }
 
 #[derive(Clone, Debug)]
+pub struct SimpleNerfDatasetBatch<B: Backend> {
+    pub directions: Tensor<B, 4>,
+    pub distances: Tensor<B, 4>,
+    pub image: Tensor<B, 3>,
+    pub positions: Tensor<B, 4>,
+}
+
+#[derive(Clone, Debug)]
 pub struct SimpleNerfDatasetSplit<B: Backend> {
     pub train: SimpleNerfDataset<B>,
     pub test: SimpleNerfDataset<B>,
@@ -42,7 +50,7 @@ pub struct SimpleNerfDatasetSplit<B: Backend> {
 
 impl SimpleNerfDatasetConfig {
     pub fn init_from_reader<
-        B: Backend<FloatElem = f32>,
+        B: Backend,
         R: io::Read + io::Seek,
     >(
         &self,
@@ -79,7 +87,7 @@ impl SimpleNerfDatasetConfig {
             ))?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 4>::from_data(
-                Data::new(array.into_vec()?, shape),
+                Data::new(array.into_vec::<f32>()?, shape).convert(),
                 device,
             )
         };
@@ -90,7 +98,7 @@ impl SimpleNerfDatasetConfig {
             ))?;
             let shape = Shape::from(array.shape().to_vec());
             Tensor::<B, 3>::from_data(
-                Data::new(array.into_vec()?, shape),
+                Data::new(array.into_vec::<f32>()?, shape).convert(),
                 device,
             )
         };
@@ -156,10 +164,10 @@ impl SimpleNerfDatasetConfig {
             .zip(origins.iter_dim(0))
             .map(|(((directions, distances), image), origins)| {
                 SimpleNerfDatasetInner {
-                    directions: directions.squeeze::<4>(0).into_data(),
-                    distances: distances.squeeze::<4>(0).into_data(),
-                    image: image.squeeze::<3>(0).into_data(),
-                    origins: origins.squeeze::<4>(0).into_data(),
+                    directions: directions.squeeze::<4>(0).into_data().convert(),
+                    distances: distances.squeeze::<4>(0).into_data().convert(),
+                    image: image.squeeze::<3>(0).into_data().convert(),
+                    origins: origins.squeeze::<4>(0).into_data().convert(),
                 }
             })
             .collect();
@@ -171,7 +179,7 @@ impl SimpleNerfDatasetConfig {
         })
     }
 
-    pub fn init_from_file_path<B: Backend<FloatElem = f32>>(
+    pub fn init_from_file_path<B: Backend>(
         &self,
         file_path: impl AsRef<Path>,
         device: &B::Device,
@@ -179,7 +187,7 @@ impl SimpleNerfDatasetConfig {
         self.init_from_reader(File::open(file_path)?, device)
     }
 
-    pub fn init_from_url<B: Backend<FloatElem = f32>>(
+    pub fn init_from_url<B: Backend>(
         &self,
         url: impl IntoUrl,
         device: &B::Device,
@@ -197,7 +205,7 @@ impl SimpleNerfDatasetConfig {
         )
     }
 
-    pub fn init_from_file_path_or_url<B: Backend<FloatElem = f32>>(
+    pub fn init_from_file_path_or_url<B: Backend>(
         &self,
         file_path_or_url: &str,
         device: &B::Device,
@@ -235,7 +243,7 @@ impl<B: Backend> SimpleNerfDataset<B> {
     }
 }
 
-impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem>
+impl<B: Backend> Dataset<SimpleNerfDatasetItem>
     for SimpleNerfDataset<B>
 {
     fn len(&self) -> usize {
@@ -255,7 +263,7 @@ impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem>
                 values[1] - values[0]
             };
             let mut distances =
-                Tensor::from_data(inner.distances, &self.device);
+                Tensor::from_data(inner.distances.convert(), &self.device);
             if self.has_noisy_distance {
                 let noises = distances
                     .random_like(Distribution::Uniform(0.0, distance as f64));
@@ -266,13 +274,13 @@ impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem>
 
         let positions = {
             let positions: Tensor<B, 4> =
-                Tensor::from_data(inner.origins, &self.device)
-                    + Tensor::from_data(inner.directions.clone(), &self.device)
+                Tensor::from_data(inner.origins.convert(), &self.device)
+                    + Tensor::from_data(inner.directions.clone().convert(), &self.device)
                         * distances.clone();
-            positions.into_data()
+            positions.into_data().convert()
         };
 
-        let distances = distances.into_data();
+        let distances = distances.into_data().convert();
 
         Some(SimpleNerfDatasetItem {
             directions: inner.directions,
@@ -280,6 +288,29 @@ impl<B: Backend<FloatElem = f32>> Dataset<SimpleNerfDatasetItem>
             image: inner.image,
             positions,
         })
+    }
+}
+
+impl<B: Backend> SimpleNerfDatasetBatch<B> {
+    pub fn from_item(
+        item: SimpleNerfDatasetItem,
+        device: &B::Device,
+    ) -> SimpleNerfDatasetBatch<B> {
+        SimpleNerfDatasetBatch {
+            directions: Tensor::from_data(item.directions.convert(), device),
+            distances: Tensor::from_data(item.distances.convert(), device),
+            image: Tensor::from_data(item.image.convert(), device),
+            positions: Tensor::from_data(item.positions.convert(), device),
+        }
+    }
+}
+
+impl SimpleNerfDatasetItem {
+    pub fn into_batch<B: Backend>(
+        self,
+        device: &B::Device,
+    ) -> SimpleNerfDatasetBatch<B> {
+        SimpleNerfDatasetBatch::from_item(self, device)
     }
 }
 

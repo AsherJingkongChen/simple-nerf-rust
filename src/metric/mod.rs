@@ -17,8 +17,14 @@ impl<B: Backend> PsnrMetric<B> {
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
     ) -> Tensor<B, 1> {
-        (logits - targets).powi_scalar(2).mean().log() / self.log_10.clone()
-            * -10.0
+        self.from_mse((logits - targets).powi_scalar(2).mean())
+    }
+
+    pub fn from_mse(
+        &self,
+        loss: Tensor<B, 1>,
+    ) -> Tensor<B, 1> {
+        loss.log() / self.log_10.clone() * -10.0
     }
 }
 
