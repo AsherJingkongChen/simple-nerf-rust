@@ -139,11 +139,17 @@ impl<B: AutodiffBackend> Trainer<B> {
 
             let output_image = self.renderer.forward(
                 input.directions,
-                input.distances,
+                input.intervals,
                 input.positions,
             );
-            eprintln!("input_image: {:?}", input.image.clone().max().into_scalar());
-            eprintln!("output_image: {:?}", output_image.clone().max().into_scalar());
+            eprintln!(
+                "input_image.mean(): {:?}",
+                input.image.clone().mean().into_scalar()
+            );
+            eprintln!(
+                "output_image.mean(): {:?}",
+                output_image.clone().mean().into_scalar()
+            );
 
             let loss = self.criterion.forward(
                 output_image,
@@ -160,23 +166,24 @@ impl<B: AutodiffBackend> Trainer<B> {
                 optimizer.step(self.learning_rate, self.renderer, gradients);
 
             // Monitoring
-            if epoch % 20 == 0 {
+            if epoch % 20 == 0 && epoch > 0 {
                 let input = self.dataset_test.get(0);
                 if input.is_none() {
                     continue;
                 }
                 let input = input.unwrap().into_batch(&self.device);
 
-                let renderer = self.renderer.valid();
-                let output_image = renderer.forward(
+                let output_image = self.renderer.valid().forward(
                     input.directions,
-                    input.distances,
+                    input.intervals,
                     input.positions,
                 );
+
                 let score_fidelity = self
                     .metric
                     .forward(output_image, input.image)
                     .into_scalar();
+
                 self.progress_bar.postfix =
                     format!("┃ PSNR = {:.2} dB", score_fidelity);
             }
@@ -209,7 +216,7 @@ impl<B: AutodiffBackend> Trainer<B> {
             let input = input.into_batch(&self.device);
             let output_image = renderer.forward(
                 input.directions,
-                input.distances,
+                input.intervals,
                 input.positions,
             );
             let score_fidelity =

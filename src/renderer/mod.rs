@@ -37,7 +37,7 @@ impl<B: Backend> VolumeRenderer<B> {
     pub fn forward(
         &self,
         directions: Tensor<B, 4>,
-        distances: Tensor<B, 4>,
+        intervals: Tensor<B, 4>,
         positions: Tensor<B, 4>,
     ) -> Tensor<B, 3> {
         let [height, width, points_per_ray, ..] = directions.dims();
@@ -76,35 +76,38 @@ impl<B: Backend> VolumeRenderer<B> {
             )
         };
 
-        let planar_rgb = {
-            let intervals = {
-                let device = distances.device();
-                let intervals = distances.clone().slice([
-                    0..height,
-                    0..width,
-                    1..points_per_ray,
-                ]) - distances.slice([
-                    0..height,
-                    0..width,
-                    0..(points_per_ray - 1),
-                ]);
-                Tensor::cat(
-                    vec![
-                        intervals,
-                        Tensor::full([height, width, 1, 1], 1e9, &device),
-                    ],
-                    2,
-                )
+        let image = {
+            let translucency = (-densities * intervals).exp();
+
+            let cumulative_translucency = {
+                let mut product = translucency.clone() + 1e-9;
+
+                for index in 1..points_per_ray {
+                    product = product.clone().slice_assign(
+                        [0..height, 0..width, index..index + 1],
+                        product.clone().slice([
+                            0..height,
+                            0..width,
+                            index - 1..index,
+                        ]) * product.slice([
+                            0..height,
+                            0..height,
+                            index..index + 1,
+                        ]),
+                    );
+                }
+
+                product
             };
 
-            let translucency = (-densities * intervals).exp();
-            let transmittance = (-translucency.clone() + 1.0)
-                * (translucency + 1e-6).prod_dim(2);
+            let transmittance = (-translucency + 1.0) * cumulative_translucency;
 
-            (colors * transmittance).sum_dim(2).squeeze::<3>(2)
+            let image = (colors * transmittance).sum_dim(2).squeeze::<3>(2);
+
+            image
         };
 
-        planar_rgb
+        image
     }
 }
 
@@ -118,8 +121,10 @@ mod tests {
     #[test]
     fn volume_renderer_output_shape() {
         let device = Default::default();
+
+        let points_per_ray = 16;
         let renderer = VolumeRendererConfig {
-            points_per_ray: 16,
+            points_per_ray,
             rays_per_chunk: 250,
             scene: scene::VolumetricSceneConfig {
                 input_encoder: encoder::PositionalEncoderConfig {
@@ -132,15 +137,25 @@ mod tests {
         assert!(renderer.is_ok(), "Error: {}", renderer.unwrap_err());
 
         let renderer = renderer.unwrap();
-        let directions =
-            Tensor::random([100, 100, 16, 3], Distribution::Default, &device);
-        let distances = Tensor::arange(0..16, &device)
-            .reshape([1, 1, 16, 1])
-            .expand([100, 100, 16, 1])
+        let directions = Tensor::random(
+            [100, 100, points_per_ray, 3],
+            Distribution::Default,
+            &device,
+        );
+        let distances = Tensor::arange(0..points_per_ray as i64, &device)
+            .reshape([1, 1, points_per_ray, 1])
+            .expand([100, 100, points_per_ray, 1])
             .float()
-            + Tensor::random([100, 100, 16, 1], Distribution::Default, &device);
-        let positions =
-            Tensor::random([100, 100, 16, 3], Distribution::Default, &device);
+            + Tensor::random(
+                [100, 100, points_per_ray, 1],
+                Distribution::Default,
+                &device,
+            );
+        let positions = Tensor::random(
+            [100, 100, points_per_ray, 3],
+            Distribution::Default,
+            &device,
+        );
 
         let outputs = renderer.forward(directions, distances, positions);
         assert_eq!(outputs.dims(), [100, 100, 3]);

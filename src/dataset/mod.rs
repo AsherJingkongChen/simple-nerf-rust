@@ -29,23 +29,23 @@ struct SimpleNerfDatasetInner {
 #[derive(Clone, Debug)]
 pub struct SimpleNerfDatasetItem {
     pub directions: Data<f32, 4>,
-    pub distances: Data<f32, 4>,
     pub image: Data<f32, 3>,
+    pub intervals: Data<f32, 4>,
     pub positions: Data<f32, 4>,
 }
 
 #[derive(Clone, Debug)]
 pub struct SimpleNerfDatasetBatch<B: Backend> {
     pub directions: Tensor<B, 4>,
-    pub distances: Tensor<B, 4>,
     pub image: Tensor<B, 3>,
+    pub intervals: Tensor<B, 4>,
     pub positions: Tensor<B, 4>,
 }
 
 #[derive(Clone, Debug)]
 pub struct SimpleNerfDatasetSplit<B: Backend> {
-    pub train: SimpleNerfDataset<B>,
     pub test: SimpleNerfDataset<B>,
+    pub train: SimpleNerfDataset<B>,
 }
 
 impl SimpleNerfDatasetConfig {
@@ -231,15 +231,15 @@ impl<B: Backend> SimpleNerfDataset<B> {
         );
 
         SimpleNerfDatasetSplit {
-            train: SimpleNerfDataset {
+            test: SimpleNerfDataset {
                 device: self.device.clone(),
+                inners: inners_right.into(),
+                has_noisy_distance: false,
+            },
+            train: SimpleNerfDataset {
+                device: self.device,
                 inners: inners_left.into(),
                 has_noisy_distance: true,
-            },
-            test: SimpleNerfDataset {
-                device: self.device,
-                inners: inners_right.to_vec(),
-                has_noisy_distance: false,
             },
         }
     }
@@ -282,12 +282,32 @@ impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
             positions.into_data().convert()
         };
 
-        let distances = distances.into_data().convert();
+        let intervals = {
+            let [height, width, points_per_ray, ..] = distances.dims();
+            let intervals = distances.clone().slice([
+                0..height,
+                0..width,
+                1..points_per_ray,
+            ]) - distances.slice([
+                0..height,
+                0..width,
+                0..(points_per_ray - 1),
+            ]);
+            Tensor::cat(
+                vec![
+                    intervals,
+                    Tensor::full([height, width, 1, 1], 1e9, &self.device),
+                ],
+                2,
+            )
+            .into_data()
+            .convert()
+        };
 
         Some(SimpleNerfDatasetItem {
             directions: inner.directions,
-            distances,
             image: inner.image,
+            intervals,
             positions,
         })
     }
@@ -300,8 +320,8 @@ impl<B: Backend> SimpleNerfDatasetBatch<B> {
     ) -> SimpleNerfDatasetBatch<B> {
         SimpleNerfDatasetBatch {
             directions: Tensor::from_data(item.directions.convert(), device),
-            distances: Tensor::from_data(item.distances.convert(), device),
             image: Tensor::from_data(item.image.convert(), device),
+            intervals: Tensor::from_data(item.intervals.convert(), device),
             positions: Tensor::from_data(item.positions.convert(), device),
         }
     }
@@ -343,8 +363,8 @@ mod tests {
 
         let item = item.unwrap();
         assert_eq!(item.directions.shape.dims, [100, 100, 7, 3]);
-        assert_eq!(item.distances.shape.dims, [100, 100, 7, 1]);
         assert_eq!(item.image.shape.dims, [100, 100, 3]);
+        assert_eq!(item.intervals.shape.dims, [100, 100, 7, 1]);
         assert_eq!(item.positions.shape.dims, [100, 100, 7, 3]);
         assert_eq!(item.positions.shape.dims, item.directions.shape.dims);
 
