@@ -161,7 +161,7 @@ impl<B: AutodiffBackend> Trainer<B> {
                 optimizer.step(self.learning_rate, self.renderer, gradients);
 
             // Profiling
-            if epoch % 10 == 0 && input_profile.is_some() {
+            if epoch % 25 == 0 && input_profile.is_some() {
                 let input = input_profile.clone().unwrap();
 
                 let output_image = self.renderer.valid().forward(

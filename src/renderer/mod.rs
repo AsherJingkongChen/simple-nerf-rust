@@ -1,17 +1,14 @@
 use crate::*;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use burn::prelude::*;
 
 #[derive(Config, Debug)]
 pub struct VolumeRendererConfig {
-    pub points_per_ray: usize,
-    pub rays_per_chunk: usize,
     pub scene: scene::VolumetricSceneConfig,
 }
 
 #[derive(Debug, Module)]
 pub struct VolumeRenderer<B: Backend> {
-    chunk_size: usize,
     scene: scene::VolumetricScene<B>,
 }
 
@@ -20,14 +17,7 @@ impl VolumeRendererConfig {
         &self,
         device: &B::Device,
     ) -> Result<VolumeRenderer<B>> {
-        if self.points_per_ray == 0 {
-            bail!("Point count per ray must be greater than 0");
-        }
-        if self.rays_per_chunk == 0 {
-            bail!("Ray count per chunk must be greater than 0");
-        }
         Ok(VolumeRenderer {
-            chunk_size: self.points_per_ray * self.rays_per_chunk,
             scene: self.scene.init(device)?,
         })
     }
@@ -43,9 +33,8 @@ impl<B: Backend> VolumeRenderer<B> {
         let [height, width, points_per_ray, ..] = directions.dims();
 
         let scene_outputs = {
-            let chunk_count = ((height * width * points_per_ray) as f32)
-                / (self.chunk_size as f32);
-            let chunk_count = chunk_count.round() as usize;
+            // NOTE: Using hardset chunk count to be acceptible for Wgpu backend with Metal device
+            let chunk_count = 9;
 
             let directions_chunks =
                 directions.reshape([-1, 3]).chunk(chunk_count, 0);
@@ -81,6 +70,7 @@ impl<B: Backend> VolumeRenderer<B> {
             let cumulative_translucency = {
                 let mut cumulative_product = translucency.clone() + 1e-9;
 
+                // NOTE: This is a naive implementation of cumulative product
                 for index in 1..points_per_ray {
                     let product = cumulative_product.clone().slice([
                         0..height,
@@ -125,8 +115,6 @@ mod tests {
 
         let points_per_ray = 16;
         let renderer = VolumeRendererConfig {
-            points_per_ray,
-            rays_per_chunk: 250,
             scene: scene::VolumetricSceneConfig {
                 input_encoder: encoder::PositionalEncoderConfig {
                     encoding_factor: 3,
