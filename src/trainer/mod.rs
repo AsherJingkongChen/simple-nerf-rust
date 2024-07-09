@@ -95,7 +95,7 @@ impl TrainerConfig {
                 {remaining human=true} \
                 ┃{animation}┃"
             );
-            bar.postfix = format!("┃ PSNR = 0.00 dB");
+            bar.postfix = "┃ PSNR = 0.00 dB".into();
             bar
         };
 
