@@ -122,6 +122,10 @@ impl TrainerConfig {
 impl<B: AutodiffBackend> Trainer<B> {
     pub fn fit(mut self) -> Result<()> {
         let mut optimizer = optim::AdamConfig::new().init();
+        let input_profile = self
+            .dataset_test
+            .get(0)
+            .map(|input| input.into_batch(&self.device));
 
         if let Some(seed) = self.seed {
             B::seed(seed);
@@ -142,21 +146,12 @@ impl<B: AutodiffBackend> Trainer<B> {
                 input.intervals,
                 input.positions,
             );
-            eprintln!(
-                "input_image.mean(): {:?}",
-                input.image.clone().mean().into_scalar()
-            );
-            eprintln!(
-                "output_image.mean(): {:?}",
-                output_image.clone().mean().into_scalar()
-            );
 
             let loss = self.criterion.forward(
                 output_image,
                 input.image,
                 loss::Reduction::Mean,
             );
-            eprintln!("loss: {:?}", loss.clone().into_scalar());
 
             let gradients = optim::GradientsParams::from_grads(
                 loss.backward(),
@@ -165,13 +160,9 @@ impl<B: AutodiffBackend> Trainer<B> {
             self.renderer =
                 optimizer.step(self.learning_rate, self.renderer, gradients);
 
-            // Monitoring
-            if epoch % 20 == 0 && epoch > 0 {
-                let input = self.dataset_test.get(0);
-                if input.is_none() {
-                    continue;
-                }
-                let input = input.unwrap().into_batch(&self.device);
+            // Profiling
+            if epoch % 10 == 0 && input_profile.is_some() {
+                let input = input_profile.clone().unwrap();
 
                 let output_image = self.renderer.valid().forward(
                     input.directions,
