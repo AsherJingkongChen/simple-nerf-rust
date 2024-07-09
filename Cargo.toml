@@ -9,7 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = {version = "1.0.86"}
-burn = {version = "0.13.2", features = ["accelerate", "fusion", "train", "wgpu"]}
+burn = {version = "0.13.2", features = ["fusion", "train", "wgpu"]}
 kdam = {version = "0.5.2", features = ["template", "unicode"]}
 npyz = {version = "0.8.3"}
 regex = {version = "1.10.5"}
