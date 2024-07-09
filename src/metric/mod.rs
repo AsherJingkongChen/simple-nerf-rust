@@ -1,14 +1,19 @@
 use burn::prelude::*;
+use std::marker::PhantomData;
 
 #[derive(Clone, Debug)]
 pub struct PsnrMetric<B: Backend> {
-    log_10: Tensor<B, 1>,
+    coefficient: B::FloatElem,
+    _b: PhantomData<B>,
 }
 
 impl<B: Backend> PsnrMetric<B> {
     pub fn init(device: &B::Device) -> Self {
+        let ten = Tensor::<B, 1>::from_floats([10.0], device);
+        let coefficient = (-ten.clone() / ten.log()).into_scalar();
         Self {
-            log_10: Tensor::from_floats([10.0], device).log(),
+            coefficient,
+            _b: PhantomData,
         }
     }
 
@@ -17,14 +22,15 @@ impl<B: Backend> PsnrMetric<B> {
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
     ) -> Tensor<B, 1> {
-        self.from_mse((logits - targets).powi_scalar(2).mean())
+        let error = logits - targets;
+        self.from_mse((error.clone() * error).mean())
     }
 
     pub fn from_mse(
         &self,
         loss: Tensor<B, 1>,
     ) -> Tensor<B, 1> {
-        loss.log() / self.log_10.clone() * -10.0
+        loss.log() * self.coefficient
     }
 }
 
