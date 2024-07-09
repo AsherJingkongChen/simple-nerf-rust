@@ -42,7 +42,7 @@ impl<B: Backend> VolumeRenderer<B> {
     ) -> Tensor<B, 3> {
         let [height, width, points_per_ray, ..] = directions.dims();
 
-        let (colors, densities) = {
+        let scene_outputs = {
             let chunk_count = ((height * width * points_per_ray) as f32)
                 / (self.chunk_size as f32);
             let chunk_count = chunk_count.round() as usize;
@@ -52,7 +52,7 @@ impl<B: Backend> VolumeRenderer<B> {
             let positions_chunks =
                 positions.reshape([-1, 3]).chunk(chunk_count, 0);
 
-            let scene_outputs = Tensor::cat(
+            Tensor::cat(
                 directions_chunks
                     .into_iter()
                     .zip(positions_chunks.into_iter())
@@ -61,48 +61,44 @@ impl<B: Backend> VolumeRenderer<B> {
                     })
                     .collect(),
                 0,
-            );
-
-            let size = scene_outputs.dims()[0];
-
-            (
-                scene_outputs.clone().slice([0..size, 0..3]).reshape([
-                    height,
-                    width,
-                    points_per_ray,
-                    3,
-                ]),
-                scene_outputs.slice([0..size, 3..4]).reshape([
-                    height,
-                    width,
-                    points_per_ray,
-                    1,
-                ]),
             )
+            .reshape([height, width, points_per_ray, 4])
+        };
+
+        let colors = {
+            let indexs = [0..height, 0..width, 0..points_per_ray, 0..3];
+            scene_outputs.clone().slice(indexs)
+        };
+
+        let densities = {
+            let indexs = [0..height, 0..width, 0..points_per_ray, 3..4];
+            scene_outputs.slice(indexs)
         };
 
         let image = {
             let translucency = (-densities * intervals).exp();
 
             let cumulative_translucency = {
-                let mut product = translucency.clone() + 1e-9;
+                let mut cumulative_product = translucency.clone() + 1e-9;
 
                 for index in 1..points_per_ray {
-                    product = product.clone().slice_assign(
+                    let product = cumulative_product.clone().slice([
+                        0..height,
+                        0..width,
+                        index - 1..index,
+                    ]) * cumulative_product.clone().slice([
+                        0..height,
+                        0..width,
+                        index..index + 1,
+                    ]);
+
+                    cumulative_product = cumulative_product.slice_assign(
                         [0..height, 0..width, index..index + 1],
-                        product.clone().slice([
-                            0..height,
-                            0..width,
-                            index - 1..index,
-                        ]) * product.slice([
-                            0..height,
-                            0..height,
-                            index..index + 1,
-                        ]),
+                        product,
                     );
                 }
 
-                product
+                cumulative_product
             };
 
             let transmittance = (-translucency + 1.0) * cumulative_translucency;
