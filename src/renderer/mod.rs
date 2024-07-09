@@ -34,7 +34,7 @@ impl<B: Backend> VolumeRenderer<B> {
 
         let scene_outputs = {
             // NOTE: Using hardset chunk count to be acceptible for Wgpu backend with Metal device
-            let chunk_count = 9;
+            let chunk_count = 4;
 
             let directions_chunks =
                 directions.reshape([-1, 3]).chunk(chunk_count, 0);
