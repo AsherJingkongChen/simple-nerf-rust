@@ -8,12 +8,13 @@ use zip::ZipArchive;
 #[derive(Config, Debug)]
 pub struct SimpleNerfDatasetConfig {
     pub points_per_ray: usize,
-    pub distance_range: Range<f32>,
+    pub distance_range: Range<f64>,
 }
 
 #[derive(Clone, Debug)]
 pub struct SimpleNerfDataset<B: Backend> {
     device: B::Device,
+    distance: f64,
     inners: Vec<SimpleNerfDatasetInner>,
     pub has_noisy_distance: bool,
 }
@@ -124,7 +125,7 @@ impl SimpleNerfDatasetConfig {
                 + (height as f32) / 2.0)
                 / focal;
             let plane_z = Tensor::full([height, width], -1.0, device);
-            Tensor::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
+            Tensor::<B, 2>::stack::<3>(vec![plane_x, plane_y, plane_z], 2)
                 .reshape(planes_shape)
         };
 
@@ -144,11 +145,13 @@ impl SimpleNerfDatasetConfig {
 
         let directions = directions.repeat(3, points_per_ray);
 
+        let distance = (distance_range.end - distance_range.start)
+            / (points_per_ray as f64);
+
         let distances =
             (Tensor::<B, 1, Int>::arange(0..points_per_ray as i64, device)
                 .float()
-                * ((distance_range.end - distance_range.start)
-                    / (points_per_ray as f32))
+                * distance
                 + distance_range.start)
                 .unsqueeze::<4>()
                 .repeat(0, image_count)
@@ -176,6 +179,7 @@ impl SimpleNerfDatasetConfig {
 
         Ok(SimpleNerfDataset {
             device: device.clone(),
+            distance,
             inners,
             has_noisy_distance: false,
         })
@@ -233,11 +237,13 @@ impl<B: Backend> SimpleNerfDataset<B> {
         SimpleNerfDatasetSplit {
             test: SimpleNerfDataset {
                 device: self.device.clone(),
+                distance: self.distance,
                 inners: inners_right.into(),
                 has_noisy_distance: false,
             },
             train: SimpleNerfDataset {
                 device: self.device,
+                distance: self.distance,
                 inners: inners_left.into(),
                 has_noisy_distance: true,
             },
@@ -256,57 +262,50 @@ impl<B: Backend> Dataset<SimpleNerfData> for SimpleNerfDataset<B> {
     ) -> Option<SimpleNerfData> {
         let inner = self.inners.get(index)?.clone();
 
-        let distances = {
-            let distance = {
-                let values =
-                    inner.distances.value.get(0..2).unwrap_or(&[0.0, 0.0]);
-                values[1] - values[0]
-            };
-            let mut distances =
-                Tensor::from_data(inner.distances.convert(), &self.device);
-            if self.has_noisy_distance {
-                let noises = distances
-                    .random_like(Distribution::Uniform(0.0, distance as f64));
-                distances = distances + noises;
-            }
-            distances
-        };
+        let directions =
+            Tensor::from_data(inner.directions.convert(), &self.device);
+        let distances =
+            Tensor::from_data(inner.distances.convert(), &self.device);
+        let origins = Tensor::from_data(inner.origins.convert(), &self.device);
 
-        let positions = {
-            let positions: Tensor<B, 4> =
-                Tensor::from_data(inner.origins.convert(), &self.device)
-                    + Tensor::from_data(
-                        inner.directions.clone().convert(),
-                        &self.device,
-                    ) * distances.clone();
-            positions.into_data().convert()
-        };
+        let mut distances = distances;
+        if self.has_noisy_distance {
+            let noises = distances
+                .random_like(Distribution::Uniform(0.0, self.distance));
+            distances = distances + noises;
+        }
+        let distances = distances;
+
+        let image = inner.image;
 
         let intervals = {
             let [height, width, points_per_ray, ..] = distances.dims();
-            let intervals = distances.clone().slice([
-                0..height,
-                0..width,
-                1..points_per_ray,
-            ]) - distances.slice([
-                0..height,
-                0..width,
-                0..(points_per_ray - 1),
-            ]);
             Tensor::cat(
                 vec![
-                    intervals,
+                    distances.clone().slice([
+                        0..height,
+                        0..width,
+                        1..points_per_ray,
+                    ]) - distances.clone().slice([
+                        0..height,
+                        0..width,
+                        0..(points_per_ray - 1),
+                    ]),
                     Tensor::full([height, width, 1, 1], 1e9, &self.device),
                 ],
                 2,
             )
-            .into_data()
-            .convert()
         };
 
+        let positions: Tensor<B, 4> = origins + directions.clone() * distances;
+
+        let directions = directions.into_data().convert();
+        let intervals = intervals.into_data().convert();
+        let positions = positions.into_data().convert();
+
         Some(SimpleNerfData {
-            directions: inner.directions,
-            image: inner.image,
+            directions,
+            image,
             intervals,
             positions,
         })

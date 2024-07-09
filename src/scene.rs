@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn volumetric_scene_output_shape() {
         let config = VolumetricSceneConfig {
-            hidden_size: 1,
+            hidden_size: 8,
             input_encoder: encoder::PositionalEncoderConfig {
                 encoding_factor: 1,
             },
@@ -95,10 +95,10 @@ mod tests {
         let model = config.init::<Backend>(&device).unwrap();
 
         let positions =
-            Tensor::random([123, 3], Distribution::Default, &device);
+            Tensor::random([1234, 3], Distribution::Default, &device);
         let directions = positions.random_like(Distribution::Default);
 
         let outputs = model.forward(positions, directions);
-        assert_eq!(outputs.dims(), [123, 4]);
+        assert_eq!(outputs.dims(), [1234, 4]);
     }
 }

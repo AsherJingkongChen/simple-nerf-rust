@@ -93,9 +93,7 @@ impl<B: Backend> VolumeRenderer<B> {
 
             let transmittance = (-translucency + 1.0) * cumulative_translucency;
 
-            let image = (colors * transmittance).sum_dim(2).squeeze::<3>(2);
-
-            image
+            (colors * transmittance).sum_dim(2).squeeze::<3>(2)
         };
 
         image
@@ -127,26 +125,26 @@ mod tests {
 
         let renderer = renderer.unwrap();
         let directions = Tensor::random(
-            [100, 100, points_per_ray, 3],
+            [125, 100, points_per_ray, 3],
             Distribution::Default,
             &device,
         );
         let distances = Tensor::arange(0..points_per_ray as i64, &device)
             .reshape([1, 1, points_per_ray, 1])
-            .expand([100, 100, points_per_ray, 1])
+            .expand([125, 100, points_per_ray, 1])
             .float()
             + Tensor::random(
-                [100, 100, points_per_ray, 1],
+                [125, 100, points_per_ray, 1],
                 Distribution::Default,
                 &device,
             );
         let positions = Tensor::random(
-            [100, 100, points_per_ray, 3],
+            [125, 100, points_per_ray, 3],
             Distribution::Default,
             &device,
         );
 
         let outputs = renderer.forward(directions, distances, positions);
-        assert_eq!(outputs.dims(), [100, 100, 3]);
+        assert_eq!(outputs.dims(), [125, 100, 3]);
     }
 }
