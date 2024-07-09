@@ -43,11 +43,9 @@ impl<B: Backend> VolumeRenderer<B> {
         let [height, width, points_per_ray, ..] = directions.dims();
 
         let (colors, densities) = {
-            let colors_shape = [height, width, points_per_ray, 3];
-            let densities_shape = [height, width, points_per_ray, 1];
-            let chunk_count = (((height * width * points_per_ray) as f32)
-                / (self.chunk_size as f32))
-                .round() as usize;
+            let chunk_count = ((height * width * points_per_ray) as f32)
+                / (self.chunk_size as f32);
+            let chunk_count = chunk_count.round() as usize;
 
             let directions_chunks =
                 directions.reshape([-1, 3]).chunk(chunk_count, 0);
@@ -68,11 +66,18 @@ impl<B: Backend> VolumeRenderer<B> {
             let size = scene_outputs.dims()[0];
 
             (
-                scene_outputs
-                    .clone()
-                    .slice([0..size, 0..3])
-                    .reshape(colors_shape),
-                scene_outputs.slice([0..size, 3..4]).reshape(densities_shape),
+                scene_outputs.clone().slice([0..size, 0..3]).reshape([
+                    height,
+                    width,
+                    points_per_ray,
+                    3,
+                ]),
+                scene_outputs.slice([0..size, 3..4]).reshape([
+                    height,
+                    width,
+                    points_per_ray,
+                    1,
+                ]),
             )
         };
 
