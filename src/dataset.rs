@@ -27,7 +27,7 @@ struct SimpleNerfDatasetInner {
 }
 
 #[derive(Clone, Debug)]
-pub struct SimpleNerfDatasetItem {
+pub struct SimpleNerfData {
     pub directions: Data<f32, 4>,
     pub image: Data<f32, 3>,
     pub intervals: Data<f32, 4>,
@@ -35,7 +35,7 @@ pub struct SimpleNerfDatasetItem {
 }
 
 #[derive(Clone, Debug)]
-pub struct SimpleNerfDatasetBatch<B: Backend> {
+pub struct SimpleNerfInput<B: Backend> {
     pub directions: Tensor<B, 4>,
     pub image: Tensor<B, 3>,
     pub intervals: Tensor<B, 4>,
@@ -245,7 +245,7 @@ impl<B: Backend> SimpleNerfDataset<B> {
     }
 }
 
-impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
+impl<B: Backend> Dataset<SimpleNerfData> for SimpleNerfDataset<B> {
     fn len(&self) -> usize {
         self.inners.len()
     }
@@ -253,7 +253,7 @@ impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
     fn get(
         &self,
         index: usize,
-    ) -> Option<SimpleNerfDatasetItem> {
+    ) -> Option<SimpleNerfData> {
         let inner = self.inners.get(index)?.clone();
 
         let distances = {
@@ -304,7 +304,7 @@ impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
             .convert()
         };
 
-        Some(SimpleNerfDatasetItem {
+        Some(SimpleNerfData {
             directions: inner.directions,
             image: inner.image,
             intervals,
@@ -313,26 +313,26 @@ impl<B: Backend> Dataset<SimpleNerfDatasetItem> for SimpleNerfDataset<B> {
     }
 }
 
-impl<B: Backend> SimpleNerfDatasetBatch<B> {
-    pub fn from_item(
-        item: SimpleNerfDatasetItem,
+impl<B: Backend> SimpleNerfInput<B> {
+    pub fn from_data(
+        data: SimpleNerfData,
         device: &B::Device,
-    ) -> SimpleNerfDatasetBatch<B> {
-        SimpleNerfDatasetBatch {
-            directions: Tensor::from_data(item.directions.convert(), device),
-            image: Tensor::from_data(item.image.convert(), device),
-            intervals: Tensor::from_data(item.intervals.convert(), device),
-            positions: Tensor::from_data(item.positions.convert(), device),
+    ) -> SimpleNerfInput<B> {
+        SimpleNerfInput {
+            directions: Tensor::from_data(data.directions.convert(), device),
+            image: Tensor::from_data(data.image.convert(), device),
+            intervals: Tensor::from_data(data.intervals.convert(), device),
+            positions: Tensor::from_data(data.positions.convert(), device),
         }
     }
 }
 
-impl SimpleNerfDatasetItem {
-    pub fn into_batch<B: Backend>(
+impl SimpleNerfData {
+    pub fn into_input<B: Backend>(
         self,
         device: &B::Device,
-    ) -> SimpleNerfDatasetBatch<B> {
-        SimpleNerfDatasetBatch::from_item(self, device)
+    ) -> SimpleNerfInput<B> {
+        SimpleNerfInput::from_data(self, device)
     }
 }
 

@@ -35,7 +35,7 @@ pub struct Trainer<B: AutodiffBackend> {
     dataset_test: dataset::SimpleNerfDataset<B>,
     dataset_train: transform::SamplerDataset<
         dataset::SimpleNerfDataset<B>,
-        dataset::SimpleNerfDatasetItem,
+        dataset::SimpleNerfData,
     >,
     device: B::Device,
     epoch_count: usize,
@@ -122,10 +122,8 @@ impl TrainerConfig {
 impl<B: AutodiffBackend> Trainer<B> {
     pub fn fit(mut self) -> Result<()> {
         let mut optimizer = optim::AdamConfig::new().init();
-        let input_profile = self
-            .dataset_test
-            .get(0)
-            .map(|input| input.into_batch(&self.device));
+        let input_profile =
+            self.dataset_test.get(0).map(|data| data.into_input(&self.device));
 
         if let Some(seed) = self.seed {
             B::seed(seed);
@@ -139,7 +137,7 @@ impl<B: AutodiffBackend> Trainer<B> {
             if input.is_none() {
                 break;
             }
-            let input = input.unwrap().into_batch(&self.device);
+            let input = input.unwrap().into_input(&self.device);
 
             let output_image = self.renderer.forward(
                 input.directions,
@@ -204,7 +202,7 @@ impl<B: AutodiffBackend> Trainer<B> {
         println!("Testing on {} items", self.dataset_test.len());
         let renderer = self.renderer.valid();
         for (index, input) in self.dataset_test.iter().enumerate() {
-            let input = input.into_batch(&self.device);
+            let input = input.into_input(&self.device);
             let output_image = renderer.forward(
                 input.directions,
                 input.intervals,

@@ -67,6 +67,7 @@ impl<B: Backend> VolumetricScene<B> {
             let colors =
                 activation::sigmoid(features.clone().slice([0..size, 0..3]));
             let densities = activation::relu(features.slice([0..size, 3..4]));
+
             Tensor::cat(vec![colors, densities], 1)
         };
 
