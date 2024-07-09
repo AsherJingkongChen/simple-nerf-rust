@@ -68,7 +68,7 @@ impl<B: Backend> VolumeRenderer<B> {
             let translucency = (-densities * intervals).exp();
 
             let cumulative_translucency = {
-                let mut cumulative_product = translucency.clone() + 1e-9;
+                let mut cumulative_product = translucency.clone() + 1e-6;
 
                 // NOTE: This is a naive implementation of cumulative product
                 for index in 1..points_per_ray {
