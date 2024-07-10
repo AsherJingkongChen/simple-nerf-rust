@@ -8,9 +8,9 @@ extern crate zip;
 
 pub mod dataset;
 pub mod encoder;
+pub mod experiment;
 pub mod metric;
 pub mod renderer;
 pub mod scene;
-pub mod trainer;
 
 pub use burn::backend;

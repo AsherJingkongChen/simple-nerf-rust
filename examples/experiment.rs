@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
 
     let device = backend::wgpu::WgpuDevice::BestAvailable;
 
-    trainer::TrainerConfig {
+    let experiment = experiment::ExperimentConfig {
         artifact_directory: "artifacts/experiment".into(),
         dataset: dataset::SimpleNerfDatasetConfig {
             points_per_ray: 10,
@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
         },
         dataset_file_path_or_url: "resources/lego-tiny/data.npz".into(),
         learning_rate: 5e-4,
-        epoch_count: 1000,
+        epoch_count: 10,
         train_ratio: 0.8,
         renderer: renderer::VolumeRendererConfig {
             scene: scene::VolumetricSceneConfig {
@@ -26,10 +26,12 @@ fn main() -> anyhow::Result<()> {
                 },
             },
         },
-        seed: None,
+        seed: Some(1),
     }
-    .init::<Backend>(&device)?
-    .fit()?;
+    .init::<Backend>(&device)?;
+
+    let renderer = experiment.trainer.train()?;
+    experiment.tester.test(renderer)?;
 
     Ok(())
 }
