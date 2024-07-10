@@ -23,7 +23,7 @@ pub struct Trainer<B: AutodiffBackend> {
     pub(super) dataset: dataset::SimpleNerfDataset<B>,
     pub(super) device: B::Device,
     pub(super) epoch_count: usize,
-    pub(super) metric_fidelity: metric::PsnrMetric<B::InnerBackend>,
+    pub(super) metric_fidelity_psnr: metric::PsnrMetric<B::InnerBackend>,
     pub(super) learning_rate: f64,
     pub(super) progress_bar: Bar,
     pub(super) renderer: renderer::VolumeRenderer<B>,
@@ -81,11 +81,11 @@ impl<B: AutodiffBackend> Trainer<B> {
                     input.positions,
                 );
 
-                let fidelity = self
-                    .metric_fidelity
+                let fidelity_psnr = self
+                    .metric_fidelity_psnr
                     .forward(output_image, input.image)
                     .into_scalar();
-                progress_bar.postfix = format!("┃ PSNR = {:.2} dB", fidelity);
+                progress_bar.postfix = format!("┃ PSNR = {:.2} dB", fidelity_psnr);
             }
 
             progress_bar.update(1)?;

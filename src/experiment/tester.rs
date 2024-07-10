@@ -12,7 +12,7 @@ pub struct Tester<B: AutodiffBackend> {
     pub(super) artifact_directory: PathBuf,
     pub(super) dataset: dataset::SimpleNerfDataset<B>,
     pub(super) device: B::Device,
-    pub(super) metric_fidelity: metric::PsnrMetric<B::InnerBackend>,
+    pub(super) metric_fidelity_psnr: metric::PsnrMetric<B::InnerBackend>,
 }
 
 #[derive(Config, Debug)]
@@ -30,7 +30,7 @@ pub struct EvaluationOutput {
 #[derive(Config, Debug)]
 pub struct EvaluationOutputItem {
     pub index: usize,
-    pub fidelity: f64,
+    pub fidelity_psnr: f64,
 }
 
 impl<B: AutodiffBackend> Tester<B> {
@@ -63,20 +63,20 @@ impl<B: AutodiffBackend> Tester<B> {
             time_secs_rendering +=
                 timer_from_input_to_output.elapsed().as_secs_f64();
 
-            let fidelity = self
-                .metric_fidelity
+            let fidelity_psnr = self
+                .metric_fidelity_psnr
                 .forward(output_image.clone(), input.image.clone())
                 .into_scalar()
                 .into();
 
             eval_output_items.push(EvaluationOutputItem {
                 index,
-                fidelity,
+                fidelity_psnr,
             });
             input_images.push(input.image);
             output_images.push(output_image);
 
-            eprintln!("Item {:03} ┃ PSNR = {:.2} dB", index, fidelity);
+            eprintln!("Item {:03} ┃ PSNR = {:.2} dB", index, fidelity_psnr);
         }
 
         // Saving the Outputs

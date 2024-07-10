@@ -43,7 +43,7 @@ impl ExperimentConfig {
             .init_from_file_path_or_url(&self.dataset_file_path_or_url, device)?
             .split_for_training(self.train_ratio);
 
-        let metric_fidelity =
+        let metric_fidelity_psnr =
             metric::PsnrMetric::<B::InnerBackend>::init(device);
 
         let renderer = self.renderer.init(device)?;
@@ -95,7 +95,7 @@ impl ExperimentConfig {
                 artifact_directory: artifact_directory.clone(),
                 dataset: datasets.test,
                 device: device.clone(),
-                metric_fidelity: metric_fidelity.clone(),
+                metric_fidelity_psnr: metric_fidelity_psnr.clone(),
             },
             trainer: Trainer {
                 artifact_directory,
@@ -104,7 +104,7 @@ impl ExperimentConfig {
                 device: device.clone(),
                 epoch_count: self.epoch_count,
                 learning_rate: self.learning_rate,
-                metric_fidelity,
+                metric_fidelity_psnr,
                 renderer,
                 progress_bar,
             },
