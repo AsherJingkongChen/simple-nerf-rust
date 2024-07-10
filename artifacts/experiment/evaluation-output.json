@@ -1,0 +1,89 @@
+{
+  "fps": 160.61257083846112,
+  "items": [
+    {
+      "index": 0,
+      "fidelity_psnr": 24.871416091918945
+    },
+    {
+      "index": 1,
+      "fidelity_psnr": 19.661815643310547
+    },
+    {
+      "index": 2,
+      "fidelity_psnr": 20.359739303588867
+    },
+    {
+      "index": 3,
+      "fidelity_psnr": 20.545419692993164
+    },
+    {
+      "index": 4,
+      "fidelity_psnr": 20.920366287231445
+    },
+    {
+      "index": 5,
+      "fidelity_psnr": 22.774433135986328
+    },
+    {
+      "index": 6,
+      "fidelity_psnr": 20.97182273864746
+    },
+    {
+      "index": 7,
+      "fidelity_psnr": 19.82337188720703
+    },
+    {
+      "index": 8,
+      "fidelity_psnr": 21.325908660888672
+    },
+    {
+      "index": 9,
+      "fidelity_psnr": 22.953044891357422
+    },
+    {
+      "index": 10,
+      "fidelity_psnr": 17.53356170654297
+    },
+    {
+      "index": 11,
+      "fidelity_psnr": 23.048126220703125
+    },
+    {
+      "index": 12,
+      "fidelity_psnr": 23.69717025756836
+    },
+    {
+      "index": 13,
+      "fidelity_psnr": 20.58917236328125
+    },
+    {
+      "index": 14,
+      "fidelity_psnr": 19.667556762695312
+    },
+    {
+      "index": 15,
+      "fidelity_psnr": 21.09550666809082
+    },
+    {
+      "index": 16,
+      "fidelity_psnr": 20.066604614257812
+    },
+    {
+      "index": 17,
+      "fidelity_psnr": 23.421478271484375
+    },
+    {
+      "index": 18,
+      "fidelity_psnr": 20.063026428222656
+    },
+    {
+      "index": 19,
+      "fidelity_psnr": 25.89232063293457
+    },
+    {
+      "index": 20,
+      "fidelity_psnr": 20.23978614807129
+    }
+  ]
+}

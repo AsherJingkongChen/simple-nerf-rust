@@ -1,0 +1,22 @@
+{
+  "artifact_directory": "artifacts/experiment",
+  "dataset": {
+    "points_per_ray": 20,
+    "distance_range": {
+      "start": 2.0,
+      "end": 6.0
+    }
+  },
+  "dataset_file_path_or_url": "resources/lego-tiny/data.npz",
+  "epoch_count": 10000,
+  "learning_rate": 0.001,
+  "renderer": {
+    "scene": {
+      "hidden_size": 256,
+      "input_encoder": {
+        "encoding_factor": 10
+      }
+    }
+  },
+  "train_ratio": 0.8
+}
