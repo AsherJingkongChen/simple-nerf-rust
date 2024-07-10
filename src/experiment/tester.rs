@@ -1,10 +1,11 @@
 use crate::*;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use burn::{
     data::dataset::Dataset, prelude::*, tensor::backend::AutodiffBackend,
 };
-use std::{path::PathBuf, time, vec};
+use image::{ImageFormat, RgbImage};
+use std::{path::PathBuf, time};
 
 #[derive(Clone, Debug)]
 pub struct Tester<B: AutodiffBackend> {
@@ -12,6 +13,12 @@ pub struct Tester<B: AutodiffBackend> {
     pub(super) dataset: dataset::SimpleNerfDataset<B>,
     pub(super) device: B::Device,
     pub(super) metric_fidelity: metric::PsnrMetric<B::InnerBackend>,
+}
+
+#[derive(Config, Debug)]
+pub struct TestOutput {
+    pub collage_path: PathBuf,
+    pub eval_output: EvaluationOutput,
 }
 
 #[derive(Config, Debug)]
@@ -30,16 +37,19 @@ impl<B: AutodiffBackend> Tester<B> {
     pub fn test(
         &self,
         renderer: renderer::VolumeRenderer<B::InnerBackend>,
-    ) -> Result<EvaluationOutput>
+    ) -> Result<TestOutput>
     where
         B::FloatElem: Into<f64>,
     {
         let count = self.dataset.len();
-        let mut eval_items = vec![];
-        let mut time_secs_rendering = 0.0;
-
         eprintln!("Testing on {} items", count);
 
+        let mut eval_output_items = vec![];
+        let mut input_images = vec![];
+        let mut output_images = vec![];
+        let mut time_secs_rendering = 0.0;
+
+        // Testing and Evaluating
         for (index, data) in self.dataset.iter().enumerate() {
             let timer_from_input_to_output = time::Instant::now();
 
@@ -55,19 +65,21 @@ impl<B: AutodiffBackend> Tester<B> {
 
             let fidelity = self
                 .metric_fidelity
-                .forward(output_image, input.image)
+                .forward(output_image.clone(), input.image.clone())
                 .into_scalar()
                 .into();
 
-            let eval_item = EvaluationOutputItem {
+            eval_output_items.push(EvaluationOutputItem {
                 index,
                 fidelity,
-            };
-            eval_items.push(eval_item);
+            });
+            input_images.push(input.image);
+            output_images.push(output_image);
 
             eprintln!("Item {:03} ┃ PSNR = {:.2} dB", index, fidelity);
         }
 
+        // Saving the Outputs
         let fps_rendering = count as f64 / time_secs_rendering;
         eprintln!(
             "Rendering time ┃ {:.3} sec ┃ {:.2} FPS",
@@ -75,13 +87,36 @@ impl<B: AutodiffBackend> Tester<B> {
         );
 
         let eval_output = EvaluationOutput {
-            items: eval_items,
+            items: eval_output_items,
             fps: fps_rendering,
         };
-
         eval_output
             .save(&self.artifact_directory.join("evaluation-output.json"))?;
 
-        Ok(eval_output)
+        let collage_path = self.artifact_directory.join("collage.png");
+        let collage = {
+            let image = Tensor::cat(
+                vec![
+                    Tensor::cat(input_images, 0),
+                    Tensor::cat(output_images, 0),
+                ],
+                1,
+            );
+            let [height, width, ..] = image.dims();
+            let image = (image.clamp(0.0, 1.0) * 255.0)
+                .into_data()
+                .convert::<u8>()
+                .value;
+
+            RgbImage::from_vec(width as u32, height as u32, image)
+                .ok_or(anyhow!("Collage buffer is too small"))?
+        };
+        collage.save_with_format(&collage_path, ImageFormat::Png)?;
+        eprintln!("Collage is saved at {:?}", collage_path);
+
+        Ok(TestOutput {
+            collage_path,
+            eval_output,
+        })
     }
 }

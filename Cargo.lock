@@ -315,7 +315,7 @@ dependencies = [
  "derive-new",
  "dirs",
  "gix-tempfile",
- "image",
+ "image 0.24.9",
  "r2d2",
  "r2d2_sqlite",
  "rand",
@@ -1704,6 +1704,18 @@ dependencies = [
  "png",
  "qoi",
  "tiff",
+]
+
+[[package]]
+name = "image"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd54d660e773627692c524beaad361aca785a4f9f5730ce91f42aabe5bce3d11"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "num-traits",
+ "png",
 ]
 
 [[package]]
@@ -3105,6 +3117,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "burn",
+ "image 0.25.1",
  "kdam",
  "npyz",
  "regex",

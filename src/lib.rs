@@ -1,6 +1,7 @@
 extern crate anyhow;
 extern crate burn;
 extern crate kdam;
+extern crate image;
 extern crate npyz;
 extern crate regex;
 extern crate reqwest;
