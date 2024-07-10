@@ -21,7 +21,6 @@ pub struct ExperimentConfig {
     pub epoch_count: usize,
     pub train_ratio: f32,
     pub renderer: renderer::VolumeRendererConfig,
-    pub seed: Option<u64>,
 }
 
 pub struct Experiment<B: AutodiffBackend> {
@@ -34,10 +33,6 @@ impl ExperimentConfig {
         &self,
         device: &B::Device,
     ) -> Result<Experiment<B>> {
-        if let Some(seed) = self.seed {
-            B::seed(seed);
-        }
-
         let artifact_directory = PathBuf::from(&self.artifact_directory);
 
         let criterion = loss::MseLoss::new();
@@ -91,7 +86,6 @@ impl ExperimentConfig {
                 metric_fidelity,
                 renderer,
                 progress_bar,
-                seed: self.seed,
             },
         })
     }

@@ -1,6 +1,6 @@
 extern crate simple_nerf;
 
-use simple_nerf::*;
+use simple_nerf::prelude::*;
 
 fn main() -> anyhow::Result<()> {
     type InnerBackend = backend::Wgpu;
@@ -26,7 +26,6 @@ fn main() -> anyhow::Result<()> {
                 },
             },
         },
-        seed: Some(1),
     }
     .init::<Backend>(&device)?;
 

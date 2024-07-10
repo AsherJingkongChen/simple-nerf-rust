@@ -26,16 +26,11 @@ pub struct Trainer<B: AutodiffBackend> {
     pub(super) metric_fidelity: metric::PsnrMetric<B::InnerBackend>,
     pub(super) learning_rate: f64,
     pub(super) progress_bar: Bar,
-    pub(super) seed: Option<u64>,
     pub(super) renderer: renderer::VolumeRenderer<B>,
 }
 
 impl<B: AutodiffBackend> Trainer<B> {
     pub fn train(&self) -> Result<renderer::VolumeRenderer<B::InnerBackend>> {
-        if let Some(seed) = self.seed {
-            B::seed(seed);
-        }
-
         let input_profile =
             self.dataset.get(0).map(|data| data.into_input(&self.device));
 

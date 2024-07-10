@@ -13,4 +13,9 @@ pub mod metric;
 pub mod renderer;
 pub mod scene;
 
-pub use burn::backend;
+pub mod prelude {
+    pub use crate::*;
+
+    pub use burn::backend;
+    pub use burn::prelude::{Config, Module};
+}
