@@ -46,7 +46,7 @@ mod tests {
         let metric = PsnrMetric::<Backend>::init(&device);
 
         let logits =
-            Tensor::from_floats([[0.0, 0.1, 0.2], [0.5, 0.4, 0.3]], &device);
+            Tensor::<Backend, 2>::from_floats([[0.0, 0.1, 0.2], [0.5, 0.4, 0.3]], &device);
         let targets =
             Tensor::from_floats([[0.5, 0.6, 0.7], [0.0, 0.9, 0.8]], &device);
         let psnr_true = Tensor::<Backend, 1>::from_floats([6.0206003], &device);
@@ -54,7 +54,7 @@ mod tests {
         assert!(psnr.equal(psnr_true).all().into_scalar());
 
         let logits =
-            Tensor::from_floats([[0.0, 0.1, 0.2], [0.5, 0.4, 0.3]], &device);
+            Tensor::<Backend, 2>::from_floats([[0.0, 0.1, 0.2], [0.5, 0.4, 0.3]], &device);
         let targets =
             Tensor::from_floats([[0.0, 0.6, 0.7], [0.0, 0.4, 0.3]], &device);
         let psnr_true = Tensor::<Backend, 1>::from_floats([9.0309], &device);

@@ -21,18 +21,18 @@ pub struct SimpleNerfDataset<B: Backend> {
 
 #[derive(Clone, Debug)]
 struct SimpleNerfDatasetInner {
-    directions: Data<f32, 4>,
-    distances: Data<f32, 4>,
-    image: Data<f32, 3>,
-    origins: Data<f32, 4>,
+    directions: TensorData,
+    distances: TensorData,
+    image: TensorData,
+    origins: TensorData,
 }
 
 #[derive(Clone, Debug)]
 pub struct SimpleNerfData {
-    pub directions: Data<f32, 4>,
-    pub image: Data<f32, 3>,
-    pub intervals: Data<f32, 4>,
-    pub positions: Data<f32, 4>,
+    pub directions: TensorData,
+    pub image: TensorData,
+    pub intervals: TensorData,
+    pub positions: TensorData,
 }
 
 #[derive(Clone, Debug)]
@@ -83,9 +83,9 @@ impl SimpleNerfDatasetConfig {
             let array = NpyFile::new(io::BufReader::new(
                 archive.by_name(&npz::file_name_from_array_name("images"))?,
             ))?;
-            let shape = Shape::from(array.shape().to_vec());
+            let shape = Shape::<4>::from(array.shape().to_vec());
             Tensor::<B, 4>::from_data(
-                Data::new(array.into_vec::<f32>()?, shape).convert(),
+                TensorData::new(array.into_vec::<f32>()?, shape),
                 device,
             )
         };
@@ -94,9 +94,9 @@ impl SimpleNerfDatasetConfig {
             let array = NpyFile::new(io::BufReader::new(
                 archive.by_name(&npz::file_name_from_array_name("poses"))?,
             ))?;
-            let shape = Shape::from(array.shape().to_vec());
+            let shape = Shape::<3>::from(array.shape().to_vec());
             Tensor::<B, 3>::from_data(
-                Data::new(array.into_vec::<f32>()?, shape).convert(),
+                TensorData::new(array.into_vec::<f32>()?, shape),
                 device,
             )
         };
@@ -168,11 +168,10 @@ impl SimpleNerfDatasetConfig {
                 SimpleNerfDatasetInner {
                     directions: directions
                         .squeeze::<4>(0)
-                        .into_data()
-                        .convert(),
-                    distances: distances.squeeze::<4>(0).into_data().convert(),
-                    image: image.squeeze::<3>(0).into_data().convert(),
-                    origins: origins.squeeze::<4>(0).into_data().convert(),
+                        .into_data(),
+                    distances: distances.squeeze::<4>(0).into_data(),
+                    image: image.squeeze::<3>(0).into_data(),
+                    origins: origins.squeeze::<4>(0).into_data(),
                 }
             })
             .collect();
@@ -267,10 +266,10 @@ impl<B: Backend> Dataset<SimpleNerfData> for SimpleNerfDataset<B> {
         let inner = self.inners.get(index)?.clone();
 
         let directions =
-            Tensor::from_data(inner.directions.convert(), &self.device);
+            Tensor::from_data(inner.directions, &self.device);
         let distances =
-            Tensor::from_data(inner.distances.convert(), &self.device);
-        let origins = Tensor::from_data(inner.origins.convert(), &self.device);
+            Tensor::from_data(inner.distances, &self.device);
+        let origins = Tensor::from_data(inner.origins, &self.device);
 
         let mut distances = distances;
         if self.has_noisy_distance {
@@ -283,7 +282,7 @@ impl<B: Backend> Dataset<SimpleNerfData> for SimpleNerfDataset<B> {
         let image = inner.image;
 
         let intervals = {
-            let [height, width, points_per_ray, ..] = distances.dims();
+            let [height, width, points_per_ray, _] = distances.dims();
             Tensor::cat(
                 vec![
                     distances.clone().slice([
@@ -303,9 +302,9 @@ impl<B: Backend> Dataset<SimpleNerfData> for SimpleNerfDataset<B> {
 
         let positions: Tensor<B, 4> = origins + directions.clone() * distances;
 
-        let directions = directions.into_data().convert();
-        let intervals = intervals.into_data().convert();
-        let positions = positions.into_data().convert();
+        let directions = directions.into_data();
+        let intervals = intervals.into_data();
+        let positions = positions.into_data();
 
         Some(SimpleNerfData {
             directions,
@@ -322,10 +321,10 @@ impl<B: Backend> SimpleNerfInput<B> {
         device: &B::Device,
     ) -> SimpleNerfInput<B> {
         SimpleNerfInput {
-            directions: Tensor::from_data(data.directions.convert(), device),
-            image: Tensor::from_data(data.image.convert(), device),
-            intervals: Tensor::from_data(data.intervals.convert(), device),
-            positions: Tensor::from_data(data.positions.convert(), device),
+            directions: Tensor::from_data(data.directions, device),
+            image: Tensor::from_data(data.image, device),
+            intervals: Tensor::from_data(data.intervals, device),
+            positions: Tensor::from_data(data.positions, device),
         }
     }
 }
@@ -365,11 +364,11 @@ mod tests {
         assert!(item.is_some());
 
         let item = item.unwrap();
-        assert_eq!(item.directions.shape.dims, [100, 100, 7, 3]);
-        assert_eq!(item.image.shape.dims, [100, 100, 3]);
-        assert_eq!(item.intervals.shape.dims, [100, 100, 7, 1]);
-        assert_eq!(item.positions.shape.dims, [100, 100, 7, 3]);
-        assert_eq!(item.positions.shape.dims, item.directions.shape.dims);
+        assert_eq!(item.directions.shape, [100, 100, 7, 3]);
+        assert_eq!(item.image.shape, [100, 100, 3]);
+        assert_eq!(item.intervals.shape, [100, 100, 7, 1]);
+        assert_eq!(item.positions.shape, [100, 100, 7, 3]);
+        assert_eq!(item.positions.shape, item.directions.shape);
 
         let inners = dataset.inners;
         assert_eq!(inners.len(), 106);
@@ -378,10 +377,10 @@ mod tests {
         assert!(inner.is_some());
 
         let inner = inner.unwrap();
-        assert_eq!(inner.directions.shape.dims, [100, 100, 7, 3]);
-        assert_eq!(inner.distances.shape.dims, [100, 100, 7, 1]);
-        assert_eq!(inner.image.shape.dims, [100, 100, 3]);
-        assert_eq!(inner.origins.shape.dims, [100, 100, 1, 3]);
+        assert_eq!(inner.directions.shape, [100, 100, 7, 3]);
+        assert_eq!(inner.distances.shape, [100, 100, 7, 1]);
+        assert_eq!(inner.image.shape, [100, 100, 3]);
+        assert_eq!(inner.origins.shape, [100, 100, 1, 3]);
     }
 
     #[test]

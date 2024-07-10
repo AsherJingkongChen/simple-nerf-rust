@@ -19,7 +19,7 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct Trainer<B: AutodiffBackend> {
     pub(super) artifact_directory: PathBuf,
-    pub(super) criterion: loss::MseLoss<B>,
+    pub(super) criterion: loss::MseLoss,
     pub(super) dataset: dataset::SimpleNerfDataset<B>,
     pub(super) device: B::Device,
     pub(super) epoch_count: usize,

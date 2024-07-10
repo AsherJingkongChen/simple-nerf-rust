@@ -106,9 +106,9 @@ impl<B: AutodiffBackend> Tester<B> {
             let image = (image.clamp(0.0, 1.0) * 255.0)
                 .into_data()
                 .convert::<u8>()
-                .value;
+                .to_vec::<u8>().map_err(|e| anyhow!("{:?}", e))?;
 
-            RgbImage::from_vec(width as u32, height as u32, image)
+            RgbImage::from_raw(width as u32, height as u32, image)
                 .ok_or(anyhow!("Collage buffer is too small"))?
         };
         collage.save_with_format(&collage_path, ImageFormat::Png)?;

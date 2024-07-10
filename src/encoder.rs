@@ -31,7 +31,7 @@ impl PositionalEncoderConfig {
                 .unsqueeze_dim::<2>(1)
                 .repeat(1, 2)
                 .reshape(shape);
-        let phases = Tensor::from_floats([0.0, PI / 2.0], device)
+        let phases = Tensor::<B, 1>::from_floats([0.0, PI / 2.0], device)
             .unsqueeze_dim::<2>(0)
             .repeat(0, encoding_factor)
             .reshape(shape);
