@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
             },
         },
     }
-    .init::<Backend>(&device)?;
+    .init::<Backend>(&device, true)?;
 
     let renderer = experiment.trainer.train()?;
     experiment.tester.test(renderer)?;

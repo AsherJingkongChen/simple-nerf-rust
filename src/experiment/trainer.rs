@@ -109,9 +109,8 @@ impl<B: AutodiffBackend> Trainer<B> {
 
         // Saving the Renderer
         renderer.clone().save_file(
-            self.artifact_directory.join("renderer"),
-            &record::NamedMpkFileRecorder::<record::FullPrecisionSettings>::new(
-            ),
+            self.artifact_directory.join("volume-renderer"),
+            &record::DefaultRecorder::new(),
         )?;
 
         Ok(renderer.valid())

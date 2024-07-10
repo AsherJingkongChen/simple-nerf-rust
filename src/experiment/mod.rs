@@ -4,7 +4,7 @@ pub mod trainer;
 use crate::*;
 
 use self::{tester::*, trainer::*};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use burn::{
     data::dataset::Dataset, nn::loss, prelude::*,
     tensor::backend::AutodiffBackend,
@@ -32,6 +32,7 @@ impl ExperimentConfig {
     pub fn init<B: AutodiffBackend>(
         &self,
         device: &B::Device,
+        do_clear_artifacts_directory: bool,
     ) -> Result<Experiment<B>> {
         let artifact_directory = PathBuf::from(&self.artifact_directory);
 
@@ -65,9 +66,29 @@ impl ExperimentConfig {
             bar
         };
 
-        let _ = fs::remove_dir_all(&artifact_directory);
+        // Prepare the Directory to Save Artifacts
+        if do_clear_artifacts_directory {
+            if artifact_directory.is_dir() {
+                fs::remove_dir_all(&artifact_directory)?;
+            } else if artifact_directory.exists() {
+                fs::remove_file(&artifact_directory)?;
+            }
+        } else {
+            if artifact_directory.is_dir() {
+                bail!(
+                    "Artifacts directory already exists: {:?}",
+                    artifact_directory
+                );
+            } else if artifact_directory.exists() {
+                bail!(
+                    "Artifacts directory is not a directory: {:?}",
+                    artifact_directory
+                );
+            }
+        }
         fs::create_dir_all(&artifact_directory)?;
-        self.save(artifact_directory.join("config.json"))?;
+
+        self.save(artifact_directory.join("experiment.json"))?;
 
         Ok(Experiment {
             tester: Tester {
