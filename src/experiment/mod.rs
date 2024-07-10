@@ -17,10 +17,10 @@ pub struct ExperimentConfig {
     pub artifact_directory: String,
     pub dataset: dataset::SimpleNerfDatasetConfig,
     pub dataset_file_path_or_url: String,
-    pub learning_rate: f64,
     pub epoch_count: usize,
-    pub train_ratio: f32,
+    pub learning_rate: f64,
     pub renderer: renderer::VolumeRendererConfig,
+    pub train_ratio: f32,
 }
 
 pub struct Experiment<B: AutodiffBackend> {
@@ -105,8 +105,8 @@ impl ExperimentConfig {
                 epoch_count: self.epoch_count,
                 learning_rate: self.learning_rate,
                 metric_fidelity_psnr,
-                renderer,
                 progress_bar,
+                renderer,
             },
         })
     }
