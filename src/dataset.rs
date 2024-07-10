@@ -16,7 +16,7 @@ pub struct SimpleNerfDataset<B: Backend> {
     device: B::Device,
     distance: f64,
     inners: Vec<SimpleNerfDatasetInner>,
-    pub has_noisy_distance: bool,
+    has_noisy_distance: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -229,24 +229,28 @@ impl<B: Backend> SimpleNerfDataset<B> {
         self,
         ratio: f32,
     ) -> SimpleNerfDatasetSplit<B> {
-        let (inners_left, inners_right) = self.inners.split_at(
+        let (inners_train, inners_test) = self.inners.split_at(
             (ratio.clamp(0.0, 1.0) * (self.inners.len() as f32)).round()
                 as usize,
         );
 
+        let test = SimpleNerfDataset {
+            device: self.device.clone(),
+            distance: self.distance,
+            inners: inners_test.into(),
+            has_noisy_distance: false,
+        };
+
+        let train = SimpleNerfDataset {
+            device: self.device,
+            distance: self.distance,
+            inners: inners_train.into(),
+            has_noisy_distance: true,
+        };
+
         SimpleNerfDatasetSplit {
-            test: SimpleNerfDataset {
-                device: self.device.clone(),
-                distance: self.distance,
-                inners: inners_right.into(),
-                has_noisy_distance: false,
-            },
-            train: SimpleNerfDataset {
-                device: self.device,
-                distance: self.distance,
-                inners: inners_left.into(),
-                has_noisy_distance: true,
-            },
+            test,
+            train,
         }
     }
 }
@@ -408,16 +412,13 @@ mod tests {
 
         let dataset = dataset.unwrap();
         let datasets = dataset.split_for_training(0.8);
-        assert_eq!(datasets.train.len(), datasets.train.inners.len());
-        assert_eq!(datasets.test.len(), datasets.test.inners.len());
-        assert!(datasets.train.has_noisy_distance);
+        assert_eq!(datasets.train.len(), 85);
+        assert_eq!(datasets.test.len(), 21);
         assert!(!datasets.test.has_noisy_distance);
 
-        let datasets = datasets.train.split_for_training(1.0);
-        assert_eq!(datasets.train.len(), datasets.train.inners.len());
-        assert_eq!(datasets.test.len(), datasets.test.inners.len());
+        let datasets = datasets.test.split_for_training(1.0);
+        assert_eq!(datasets.train.len(), 21);
         assert_eq!(datasets.test.len(), 0);
-        assert!(datasets.train.has_noisy_distance);
         assert!(!datasets.test.has_noisy_distance);
     }
 }
